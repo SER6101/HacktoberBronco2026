@@ -1,136 +1,192 @@
-import { useState } from "react";
-import { hobbies, skillDescriptions, skillRoadmaps } from "../data/hobbies.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { hobbies, skillDescriptions } from "../data/hobbies.js";
+import { getHobbyInfo, selectSkill, getProgress, getLesson, completeLesson, getAchievements } from "../services/api.js";
 
-export default function HobbyProgressPage({ user, hobbyName, onBack, onCompleteStep, onSaveSkill }) {
-  const hobby = hobbies.find((item) => item.name === hobbyName);
-  const completed = user.progress?.[hobbyName] || [];
-  const skill = user.skillLevels?.[hobbyName];
-  const [isChoosingSkill, setIsChoosingSkill] = useState(!skill);
-  const [selectedSkill, setSelectedSkill] = useState(skill || "");
-  const [step, setStep] = useState(null);
-  const [isRoadmapExpanded, setIsRoadmapExpanded] = useState(true);
-  const activeRoadmap = skillRoadmaps[skill] || skillRoadmaps.Beginner;
-  const selectedCheckpoint = step === null ? null : activeRoadmap[step];
-  const percent = Math.round(completed.length / activeRoadmap.length * 100);
-  const unlocked = Math.min(completed.length + 1, activeRoadmap.length);
-  const achievements = [
-    ["First step", "Complete your first checkpoint.", completed.length >= 1],
-    ["Finding your rhythm", "Complete three checkpoints.", completed.length >= 3],
-    ["Path maker", "Finish every checkpoint.", completed.length === activeRoadmap.length],
-  ];
-  const quests = activeRoadmap.slice(0, 3).map(([checkpointName], index) => ({
-    title: `Reach ${checkpointName.toLowerCase()}`,
-    completed: completed.includes(index),
-    checkpoint: index + 1,
-  }));
-  const earnedAchievements = achievements.filter(([, , earned]) => earned);
-  const completedQuests = quests.filter((quest) => quest.completed);
+export default function HobbyProgressPage({ user, hobbyName, sessionId, onBack, onSaveSkill, onProgressSaved }) {
+  const meta = hobbies.find((h) => h.name === hobbyName);
+  const savedSkill = user.skillLevels?.[hobbyName] || "";
+  const [skill, setSkill] = useState(savedSkill);
+  const [selectedSkill, setSelectedSkill] = useState("");
+  const [showPopup, setShowPopup] = useState(!savedSkill);
+  const [info, setInfo] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [lessonData, setLessonData] = useState(null);
+  const [current, setCurrent] = useState(null);
+  const [achievements, setAchievements] = useState({});
+  const [quests, setQuests] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [readingPercent, setReadingPercent] = useState(0);
+  const [videoPercent, setVideoPercent] = useState(0);
+  const submitting = useRef(false);
+  const lastReported = useRef(null);
+  const progressSavedRef = useRef(onProgressSaved);
+  progressSavedRef.current = onProgressSaved;
 
-  if (isChoosingSkill) {
-    return (
-      <main className="wide">
-        <button className="text-button back" onClick={onBack}>← My hobbies</button>
-        <section className="skill-card">
-          <span className="big-icon">{hobby?.icon}</span>
-          <p className="eyebrow">PERSONALIZE YOUR ROADMAP</p>
-          <h1>What’s your {hobbyName.toLowerCase()} experience?</h1>
-          <p className="muted">We’ll use this to choose the right starting point and tutorials. You can change it later.</p>
-          <div className="skill-options">
-            {Object.entries(skillDescriptions).map(([level, description]) => (
-              <label className={`skill-option${selectedSkill === level ? " selected" : ""}`} key={level}>
-                <input type="radio" name={`skill-${hobbyName}`} value={level} checked={selectedSkill === level} onChange={() => setSelectedSkill(level)} />
-                <span><strong>{level}</strong><small>{description}</small></span>
-                <span className="radio" />
-              </label>
-            ))}
-          </div>
-          <div className="skill-actions">
-            {skill && <button className="button light" type="button" onClick={() => setIsChoosingSkill(false)}>Cancel</button>}
-            <button className="button primary" type="button" disabled={!selectedSkill} onClick={() => {
-              if (onSaveSkill(hobbyName, selectedSkill)) {
-                setIsChoosingSkill(false);
-                setStep(null);
-                setIsRoadmapExpanded(true);
-              }
-            }}>Start my roadmap <span>→</span></button>
-          </div>
-        </section>
-      </main>
-    );
+  useEffect(() => {
+    getHobbyInfo(hobbyName).then(setInfo).catch((e) => setError(e.message));
+  }, [hobbyName]);
+
+  const refresh = useCallback(async (level, desiredLesson = null) => {
+    const [result, pageData] = await Promise.all([
+      getProgress(hobbyName, level, sessionId),
+      selectSkill(hobbyName, level, sessionId),
+    ]);
+    setQuests(pageData.page?.sidebar?.quests || []);
+    setProgress(result);
+    const number = desiredLesson ?? result.progress.current_lesson;
+    const detail = await getLesson(hobbyName, number, level, sessionId);
+    setCurrent(number);
+    setLessonData(detail);
+    const badges = await getAchievements(hobbyName, sessionId, level);
+    setAchievements(badges.achievements || {});
+    // SQLite stores real completions; auto-credited nodes are included for display.
+    progressSavedRef.current?.(hobbyName, result.completed_lessons);
+  }, [hobbyName, sessionId]);
+
+  useEffect(() => {
+    if (!skill) return;
+    setError("");
+    refresh(skill).catch((e) => setError(e.message));
+  }, [skill, refresh]);
+
+  async function chooseSkill() {
+    if (!selectedSkill || busy) return;
+    setBusy(true); setError("");
+    try {
+      await selectSkill(hobbyName, selectedSkill, sessionId);
+      if (!onSaveSkill(hobbyName, selectedSkill)) throw new Error("Could not save skill selection");
+      setSkill(selectedSkill);
+      setShowPopup(false);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
   }
+
+  async function openLesson(number) {
+    if (!skill) return;
+    setBusy(true); setError("");
+    try {
+      const detail = await getLesson(hobbyName, number, skill, sessionId);
+      setCurrent(number); setLessonData(detail);
+      setReadingPercent(0); setVideoPercent(0);
+      lastReported.current = null;
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function reportCompletion(kind) {
+    if (!skill || current === null || submitting.current || lessonData?.status?.completed) return;
+    if (lastReported.current === `${skill}:${current}`) return;
+    submitting.current = true;
+    setError("");
+    try {
+      await completeLesson(hobbyName, sessionId, skill, current, kind === "reading", kind === "video");
+      lastReported.current = `${skill}:${current}`;
+      await refresh(skill, current);
+    } catch (e) { setError(e.message); }
+    finally { submitting.current = false; }
+  }
+
+  function handleReadingScroll(event) {
+    if (lessonData?.status?.completed) return;
+    const el = event.currentTarget;
+    const max = el.scrollHeight - el.clientHeight;
+    const pct = max <= 0 ? 100 : Math.min(100, Math.round(el.scrollTop / max * 100));
+    setReadingPercent(pct);
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) reportCompletion("reading");
+  }
+
+  const lesson = lessonData?.lesson;
+  const status = lessonData?.status;
+  const roadmap = progress?.roadmap || [];
+  const completedCount = progress?.progress?.completed || 0;
+  const percent = progress?.progress?.percentage || 0;
+  const completedQuests = []; // Quest storage is not yet implemented in SQLite.
+  const questTitles = quests;
 
   return (
     <main className="wide">
       <button className="text-button back" onClick={onBack}>← My hobbies</button>
       <section className="progress-heading">
-        <span className="big-icon">{hobby?.icon}</span>
-        <div className="hobby-heading">
-          <p className="eyebrow">{hobby?.category} · {skill} ROADMAP</p>
-          <h1>{hobbyName}</h1>
-          <p>{hobby?.description}</p>
-          <button className="text-button change-skill" type="button" onClick={() => { setSelectedSkill(skill); setIsChoosingSkill(true); }}>Change skill level</button>
-        </div>
-        <div className="progress-summary"><strong>{percent}%</strong><small>journey complete</small><div className="progress-track"><span style={{ width: `${percent}%` }} /></div></div>
+        <span className="big-icon">{meta?.icon || "✦"}</span>
+        <div className="hobby-heading"><p className="eyebrow">YOUR HOBBY JOURNEY</p><h1>{hobbyName}</h1><p>{info?.description || meta?.description}</p></div>
       </section>
-      <div className="learning-layout">
-        <section className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">ONE STEP AT A TIME</p><h2>Your learning roadmap</h2></div><small>{completed.length}/{activeRoadmap.length} done</small></div>
-          {!completed.length && !selectedCheckpoint && <div className="first-step"><strong>✦ &nbsp;Take your first step!</strong><p>Choose a checkpoint below to open its {skill.toLowerCase()}-friendly tutorial.</p></div>}
-          {isRoadmapExpanded ? (
-            <div className="roadmap">{activeRoadmap.map(([title, duration], index) => {
-              const done = completed.includes(index);
-              const canOpen = index < unlocked;
-              return (
-                <button key={title} className={`roadmap-step${step === index ? " active" : ""}${done ? " done" : ""}`} disabled={!canOpen} onClick={() => { setStep(index); setIsRoadmapExpanded(false); }}>
-                  <span className="marker">{done ? "✓" : String(index + 1).padStart(2, "0")}</span>
-                  <span className="roadmap-copy"><strong>{title}</strong><small>{duration} · {done ? "Completed" : canOpen ? "Ready to explore" : "Complete the previous step to unlock"}</small></span>
-                </button>
-              );
-            })}</div>
-          ) : selectedCheckpoint && (
-            <button className="selected-checkpoint" type="button" onClick={() => setIsRoadmapExpanded(true)} aria-expanded="false">
-              <span className="marker">{completed.includes(step) ? "✓" : String(step + 1).padStart(2, "0")}</span>
-              <span className="roadmap-copy"><strong>{selectedCheckpoint[0]}</strong><small>Checkpoint {step + 1} · {selectedCheckpoint[1]}</small></span>
-              <span className="selected-change">Change checkpoint</span>
-            </button>
-          )}
-          {selectedCheckpoint && (
-            <section className="checkpoint">
-              <p className="eyebrow">CHECKPOINT {String(step + 1).padStart(2, "0")} · {selectedCheckpoint[1].toUpperCase()}</p>
-              <h2>{selectedCheckpoint[0]}</h2>
-              <p className="muted">{selectedCheckpoint[2]}</p>
-              <div className="tutorial"><p className="eyebrow">YOUR TUTORIAL</p><p>{selectedCheckpoint[3].replaceAll("your hobby", hobbyName.toLowerCase())}</p></div>
-              <div className="video"><span>▶</span><div><strong>Video lesson coming soon</strong><small>We’ll add a {hobbyName.toLowerCase()} video tutorial here.</small></div><small className="placeholder">PLACEHOLDER</small></div>
-              {completed.includes(step)
-                ? <p className="complete-msg">✓ &nbsp;Checkpoint complete — nice work!</p>
-                : <button className="button primary complete" onClick={() => onCompleteStep(hobbyName, step)}>Mark checkpoint complete <span>✓</span></button>}
-            </section>
-          )}
+      {error && <p className="error" role="alert">{error}</p>}
+      {skill && progress && <>
+        <section className="panel" style={{ marginBottom: 20 }}>
+          <div className="panel-heading"><div><p className="eyebrow">YOUR LEARNING PATH</p><h2>10-lesson roadmap</h2></div><small>{completedCount}/10 complete</small></div>
+          <div className="roadmap" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+            {roadmap.map((node) => <button key={node.node} type="button"
+              className={`roadmap-step${node.node === current ? " active" : ""}${node.completed ? " done" : ""}`}
+              disabled={!node.unlocked || busy} onClick={() => openLesson(node.node)}
+              aria-label={`Lesson ${node.node}: ${node.title}${node.completed ? ", completed" : node.unlocked ? ", available" : ", locked"}`}>
+              <span className="marker">{node.completed ? "✓" : String(node.node).padStart(2, "0")}</span>
+              <span className="roadmap-copy"><strong>{node.title}</strong><small>{node.auto_completed ? "Credited by skill" : node.completed ? "Completed" : node.unlocked ? "Available" : "Locked"}</small></span>
+            </button>)}
+          </div>
         </section>
-        <aside className="sidebar">
-          <section className="panel"><p className="eyebrow">YOUR PROGRESS</p><h2>Keep your momentum</h2><div className="count">{completed.length}<span> / {activeRoadmap.length}</span></div><small className="muted">checkpoints complete</small><div className="progress-track"><span style={{ width: `${percent}%` }} /></div><p className="tip">{completed.length ? "Every little bit of practice counts. Come back when you’re ready for the next step." : "A few minutes is all it takes to begin. Your first checkpoint is ready."}</p></section>
-          <section className="panel"><p className="eyebrow">LITTLE WINS</p><h2>Achievements</h2>
-            {!earnedAchievements.length && !completedQuests.length ? (
-              <div className="achievement-empty"><span>✦</span><p>Your first achievement is waiting!</p><small>Complete a quest or checkpoint to see it here.</small></div>
-            ) : (
-              <div className="achievements">
-                {earnedAchievements.map(([title, detail]) => <div className="achievement earned" key={title}><span>✦</span><div><strong>{title}</strong><small>{detail}</small></div><b>✓</b></div>)}
-                {completedQuests.map((quest) => <div className="achievement earned" key={quest.title}><span>✓</span><div><strong>{quest.title}</strong><small>Quest complete · Checkpoint {quest.checkpoint}</small></div><b>✓</b></div>)}
+        <div className="learning-layout">
+          <section className="panel">
+            {lesson && <>
+              <p className="eyebrow">LESSON {current} OF 10</p>
+              <h2>{lesson.title}</h2>
+              {lesson.reading && <>
+                <p className="muted">Scroll to the end of the article to complete this lesson.</p>
+                <div key={`${skill}:${current}:reading`} onScroll={handleReadingScroll}
+                  style={{ maxHeight: 280, overflowY: "auto", border: "1px solid #ddd", borderRadius: 12, padding: 20, lineHeight: 1.7 }}>
+                  <article style={{ whiteSpace: "pre-wrap" }}>{lesson.reading}</article>
+                  <p className="muted">End of lesson reading.</p>
+                </div>
+                <p className="muted">Reading progress: {status?.completed ? 100 : readingPercent}%</p>
+                <progress value={status?.completed ? 100 : readingPercent} max="100" style={{ width: "100%" }} />
+                {/* Short content might not scroll. Explicit end-of-article visibility handles that case. */}
+                {!status?.completed && <ReadingEndObserver key={`${skill}:${current}:end`} onReached={() => reportCompletion("reading")} />}
+              </>}
+              {lesson.video_url && <div className="tutorial">
+                <p className="eyebrow">VIDEO LESSON</p>
+                <video key={`${skill}:${current}:video`} controls width="100%"
+                  onTimeUpdate={(e) => { const v = e.currentTarget; if (Number.isFinite(v.duration) && v.duration > 0) setVideoPercent(Math.round(v.currentTime / v.duration * 100)); }}
+                  onEnded={() => reportCompletion("video")} src={lesson.video_url} />
+                <p className="muted">Video progress: {status?.completed ? 100 : videoPercent}%</p>
+              </div>}
+              {status?.completed ? <p className="complete-msg">✓ Lesson completed — next lesson unlocked.</p> : <p className="muted">Finish the reading or video to unlock Next Lesson.</p>}
+              <div className="actions">
+                <button className="button light" disabled={current <= 1 || busy} onClick={() => openLesson(current - 1)}>← Previous Lesson</button>
+                <button className="button primary" disabled={!lessonData?.next_unlocked || current >= 10 || busy} onClick={() => openLesson(current + 1)}>Next Lesson →</button>
               </div>
-            )}
+            </>}
+            {!lesson && <p>Loading lesson…</p>}
           </section>
-          <section className="panel quests-panel">
-            <p className="eyebrow">YOUR NEXT MILESTONES</p><h2>Quests</h2>
-            {quests.every((quest) => quest.completed) ? (
-              <div className="achievement-empty"><span>✦</span><p>All quests complete!</p><small>Keep going on your roadmap to unlock more achievements.</small></div>
-            ) : (
-              <div className="quests-list">{quests.filter((quest) => !quest.completed).map((quest) => (
-                <div className="quest" key={quest.title}><span className="quest-marker">{String(quest.checkpoint).padStart(2, "0")}</span><span className="quest-copy"><strong>{quest.title}</strong><small>Complete checkpoint {quest.checkpoint}</small></span></div>
-              ))}</div>
-            )}
-          </section>
-        </aside>
-      </div>
+          <aside className="sidebar">
+            <section className="panel"><p className="eyebrow">YOUR PROGRESS</p><h2>Keep your momentum</h2>
+              <div className="count">{completedCount}<span> / 10</span></div><div className="progress-track"><span style={{ width: `${percent}%` }} /></div><p className="muted">{percent}% complete</p></section>
+            <section className="panel"><p className="eyebrow">LITTLE WINS</p><h2>Achievements</h2>
+              <div className="achievements">{Object.entries(achievements).map(([key, earned]) => <div className={`achievement${earned ? " earned" : ""}`} key={key}><span>{earned ? "✓" : "○"}</span><div><strong>{key.replaceAll("_", " ")}</strong></div></div>)}</div>
+            </section>
+            <section className="panel quests-panel"><p className="eyebrow">YOUR NEXT MILESTONES</p><h2>Quests</h2>
+              <p className="muted">Quest completion tracking will be connected next.</p>
+              {questTitles.map((q, i) => <p key={i}>{completedQuests.includes(i) ? "✓" : "○"} {q}</p>)}
+            </section>
+          </aside>
+        </div>
+      </>}
+      {showPopup && <div role="presentation" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="skill-modal-title" className="skill-card" style={{ background: "white", borderRadius: 16, padding: 28, maxWidth: 460, width: "100%" }}>
+          <h2 id="skill-modal-title">What's your {hobbyName.toLowerCase()} experience?</h2>
+          <p className="muted">Choose once to set your starting lesson.</p>
+          <div className="skill-options">{["Beginner", "Intermediate", "Expert"].map((level) => <label key={level} className={`skill-option${selectedSkill === level ? " selected" : ""}`}>
+            <input type="radio" name="skill" checked={selectedSkill === level} onChange={() => setSelectedSkill(level)} />
+            <span><strong>{level}</strong><small>{skillDescriptions[level]}</small></span>
+          </label>)}</div>
+          <button className="button primary" disabled={!selectedSkill || busy} onClick={chooseSkill}>{busy ? "Loading…" : "Start my roadmap →"}</button>
+        </section>
+      </div>}
     </main>
   );
+}
+
+// For reading-only lessons that fit entirely in the scroll container, show an explicit
+// end-of-reading action rather than marking the lesson complete merely on page load.
+function ReadingEndObserver({ onReached }) {
+  return <button className="button light" type="button" onClick={onReached}>I've reached the end of this short reading</button>;
 }
