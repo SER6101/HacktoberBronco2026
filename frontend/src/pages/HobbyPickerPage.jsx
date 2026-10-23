@@ -1,65 +1,91 @@
-import { useState } from "react";
-import { hobbies, questions } from "../data/hobbies.js";
+import { useEffect, useState } from "react";
+import { hobbies as localHobbies } from "../data/hobbies.js";
+import { getQuestions, getHobbies, submitQuestionnaire } from "../services/api.js";
 
-export default function HobbyPickerPage({
-  user,
-  selectedHobbies,
-  onToggle,
-  onSaveAnswers,
-  onSaveHobbies,
-  onBack,
-  onSignOut,
-  startAtPicker = false,
-}) {
+export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSaveAnswers,
+  onSaveHobbies, onBack, onSignOut, startAtPicker = false }) {
   const [phase, setPhase] = useState(startAtPicker ? "picker" : "questionnaire");
+  const [questions, setQuestions] = useState([]);
+  const [catalog, setCatalog] = useState([]);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState(user.answers || Array(questions.length).fill(""));
-  const question = questions[questionIndex];
+  const [answers, setAnswers] = useState(user.answers || Array(5).fill(""));
+  const [recommendations, setRecommendations] = useState(user.recommendations || null);
+  const [showAll, setShowAll] = useState(Boolean(startAtPicker));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  if (phase === "questionnaire") {
-    return (
-      <main className="narrow">
-        <div className="topline"><span>Hi {user.name.split(" ")[0]}, let’s find your kind of fun.</span><button className="text-button" onClick={onSignOut}>Sign out</button></div>
-        <section className="quiz-card">
-          <p className="eyebrow">A FEW QUICK QUESTIONS</p>
-          <div className="progress-track"><span style={{ width: `${(questionIndex + 1) / questions.length * 100}%` }} /></div>
-          <p className="step-label">QUESTION {questionIndex + 1} OF {questions.length}</p>
-          <h1>{question.prompt}</h1>
-          <div className="choices">
-            {question.choices.map((choice) => (
-              <label className={`choice${answers[questionIndex] === choice ? " selected" : ""}`} key={choice}>
-                <input type="radio" name={`q-${questionIndex}`} checked={answers[questionIndex] === choice} onChange={() => setAnswers((previous) => previous.map((answer, index) => index === questionIndex ? choice : answer))} />
-                {choice}<span className="radio" />
-              </label>
-            ))}
-          </div>
-          <div className="actions">
-            {questionIndex > 0 && <button className="button light" type="button" onClick={() => setQuestionIndex(questionIndex - 1)}>← Back</button>}
-            {questionIndex < questions.length - 1
-              ? <button className="button primary" type="button" disabled={!answers[questionIndex]} onClick={() => setQuestionIndex(questionIndex + 1)}>Next question <span>→</span></button>
-              : <button className="button primary" type="button" disabled={!answers[questionIndex]} onClick={() => {
-                if (onSaveAnswers(answers)) setPhase("picker");
-              }}>Choose my hobbies <span>→</span></button>}
-          </div>
-        </section>
-        <p className="center muted">No wrong answers. This just helps us get started.</p>
-      </main>
-    );
+  useEffect(() => {
+    Promise.all([getQuestions(), getHobbies()])
+      .then(([q, h]) => { setQuestions(q.questions); setCatalog(h.hobbies); })
+      .catch((err) => setError(err.message));
+  }, []);
+
+  async function finishQuestionnaire() {
+    setBusy(true); setError("");
+    try {
+      const result = await submitQuestionnaire(answers);
+      if (onSaveAnswers(answers, result.recommendations)) {
+        setRecommendations(result.recommendations);
+        setShowAll(false);
+        setPhase("picker");
+      }
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   }
+
+  const question = questions[questionIndex];
+  const recommendedNames = [
+    ...(recommendations?.personalized || []).map((h) => h.hobby),
+    ...(recommendations?.random ? [recommendations.random.hobby] : []),
+  ];
+  const visible = showAll ? catalog : catalog.filter((h) => recommendedNames.includes(h.hobby));
+
+  if (phase === "questionnaire") return (
+    <main className="narrow">
+      <div className="topline"><span>Hi {user.name.split(" ")[0]}, let’s find your kind of fun.</span><button className="text-button" onClick={onSignOut}>Sign out</button></div>
+      <section className="quiz-card">
+        <p className="eyebrow">A FEW QUICK QUESTIONS</p>
+        <div className="progress-track"><span style={{ width: `${(questionIndex + 1) / 5 * 100}%` }} /></div>
+        <p className="step-label">QUESTION {questionIndex + 1} OF 5</p>
+        {question ? <>
+          <h1>{question.question}</h1>
+          <div className="choices">{question.options.map((choice) => (
+            <label className={`choice${answers[questionIndex] === choice ? " selected" : ""}`} key={choice}>
+              <input type="radio" name={`q-${questionIndex}`} checked={answers[questionIndex] === choice}
+                onChange={() => setAnswers((old) => old.map((v, i) => i === questionIndex ? choice : v))} />
+              {choice}<span className="radio" />
+            </label>
+          ))}</div>
+          <div className="actions">
+            {questionIndex > 0 && <button className="button light" onClick={() => setQuestionIndex(questionIndex - 1)}>← Back</button>}
+            {questionIndex < 4
+              ? <button className="button primary" disabled={!answers[questionIndex]} onClick={() => setQuestionIndex(questionIndex + 1)}>Next question →</button>
+              : <button className="button primary" disabled={!answers[questionIndex] || busy} onClick={finishQuestionnaire}>{busy ? "Finding hobbies…" : "See my recommendations →"}</button>}
+          </div>
+        </> : <p>Loading questions from HobBob…</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+      </section>
+    </main>
+  );
 
   return (
     <main className="wide">
-      <div className="topline"><button className="text-button back" onClick={startAtPicker ? onBack : () => setPhase("questionnaire")}>{startAtPicker ? "← My hobbies" : "← Back to questions"}</button><button className="text-button" onClick={onSignOut}>Sign out</button></div>
-      <section className="page-heading"><p className="eyebrow">YOUR HOBBY SHORTLIST</p><h1>What would you like to try?</h1><p>Choose as many as you like. Each one becomes its own learning path.</p></section>
-      <div className="picker-grid">
-        {hobbies.map((hobby) => (
-          <button key={hobby.name} className={`pick-card${selectedHobbies.includes(hobby.name) ? " selected" : ""}`} aria-pressed={selectedHobbies.includes(hobby.name)} onClick={() => onToggle(hobby.name)}>
-            <span className="hobby-icon">{hobby.icon}</span><span className="check">{selectedHobbies.includes(hobby.name) ? "✓" : "+"}</span>
-            <small>{hobby.category}</small><strong>{hobby.name}</strong><span className="description">{hobby.description}</span>
-          </button>
-        ))}
-      </div>
-      <div className="sticky-action"><span>{selectedHobbies.length} {selectedHobbies.length === 1 ? "hobby" : "hobbies"} selected</span><button className="button primary" disabled={!selectedHobbies.length} onClick={onSaveHobbies}>Save to my page <span>→</span></button></div>
+      <div className="topline"><button className="text-button back" onClick={onBack}>← My hobbies</button><button className="text-button" onClick={onSignOut}>Sign out</button></div>
+      <section className="page-heading"><p className="eyebrow">YOUR HOBBY SHORTLIST</p><h1>What would you like to try?</h1><p>Select hobbies to add to your dashboard.</p></section>
+      {!showAll && <p className="muted">Three personalized picks and one surprise suggestion.</p>}
+      <div className="picker-grid">{visible.map((item) => {
+        const hobby = localHobbies.find((h) => h.name === item.hobby);
+        const isRandom = recommendations?.random?.hobby === item.hobby;
+        return <button key={item.hobby} className={`pick-card${selectedHobbies.includes(item.hobby) ? " selected" : ""}`}
+          aria-pressed={selectedHobbies.includes(item.hobby)} onClick={() => onToggle(item.hobby)}>
+          <span className="hobby-icon">{hobby?.icon || "✦"}</span><span className="check">{selectedHobbies.includes(item.hobby) ? "✓" : "+"}</span>
+          <small>{isRandom && !showAll ? "SURPRISE PICK" : hobby?.category || "HOBBY"}</small>
+          <strong>{item.hobby}</strong><span className="description">{item.description}</span>
+        </button>;
+      })}</div>
+      {!showAll && <button className="button light" onClick={() => setShowAll(true)}>Explore More Hobbies →</button>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="sticky-action"><span>{selectedHobbies.length} hobbies selected</span><button className="button primary" disabled={!selectedHobbies.length} onClick={onSaveHobbies}>Save to my page →</button></div>
     </main>
   );
 }
