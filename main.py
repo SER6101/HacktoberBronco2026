@@ -198,6 +198,18 @@ def recommend(data: Questionnaire):
         reverse=True
     )
 
+    top_recommendations = recommendations[:3]
+
+    response_id = str(uuid4())
+
+    save_questionnaire(
+        response_id=response_id,
+        answers=data.answers,
+        recommendations=top_recommendations
+    )
+
     return {
-        "recommendations": recommendations[:3]
+        "response_id": response_id,
+        "message": "Questionnaire saved successfully",
+        "recommendations": top_recommendations
     }
