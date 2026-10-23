@@ -356,7 +356,6 @@ for hobby_data in hobbies:
         name=name,
         description=hobby_data["description"]
     )
-        )
 
 class Questionnaire(BaseModel):
     answers: list[str]
@@ -554,7 +553,9 @@ def select_skill(hobby_name: str, data: SkillSelection):
     return {
         "hobby": hobby.name,
         "skill": data.skill,
+        "introduction": hobby.get_introduction(),
         "instructions": hobby.get_instructions(data.skill),
+        "lessons": hobby.get_lessons(data.skill),
         "quests": hobby.get_quests(data.skill)
     }
 
@@ -600,15 +601,6 @@ def get_hobby_achievements(
         completed_quests
     )
 
-class LessonCompletion(BaseModel):
-    skill: str
-    lesson_index: int
-    reading_finished: bool = False
-    video_finished: bool = False
-    completed_lessons: list[int] = []
-
-
-@app.post("/hobby/{hobby_name}/complete-lesson")
 def complete_lesson(hobby_name: str, data: LessonCompletion):
 
     hobby = hobby_pages.get(hobby_name.lower())
