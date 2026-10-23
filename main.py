@@ -1,23 +1,28 @@
 import random
 
+from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from uuid import uuid4
 
 from hobby import Hobby
 from skateboarding import Skateboarding
 
 from database import (
+    init_db,
     save_questionnaire,
     get_completed_lessons,
     save_lesson_progress
 )
+
 
 app = FastAPI(
     title="HobBob",
     description="A personalized hobby discovery and learning app.",
     version="1.0.0"
 )
+
+# Initialize local SQLite storage
+init_db()
 
 questions = [
     {
@@ -347,7 +352,9 @@ hobbies = [
     }
 ]
 
-# Create a page object for each hobby
+
+# Hobby Page Object
+
 hobby_pages = {}
 
 for hobby_data in hobbies:
@@ -361,19 +368,82 @@ for hobby_data in hobbies:
             description=hobby_data["description"]
         )
 
+
+# Request Model
+
 class Questionnaire(BaseModel):
     answers: list[str]
 
 
+class SkillSelection(BaseModel):
+    session_id: str = Field(min_length=1)
+    skill: str
+
+
+class LessonCompletion(BaseModel):
+    session_id: str = Field(min_length=1)
+    skill: str
+    lesson_number: int = Field(ge=1, le=10)
+    reading_finished: bool = False
+    video_finished: bool = False
+
+
+class AchievementRequest(BaseModel):
+    session_id: str = Field(min_length=1)
+    skill: str
+    completed_quests: list[int] = Field(default_factory=list)
+
+
+# Helper Function
+
+def find_hobby(hobby_name):
+    hobby = hobby_pages.get(hobby_name.lower())
+
+    if hobby is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Hobby not found"
+        )
+
+    return hobby
+
+
+def validate_hobby_skill(hobby, skill):
+    if skill not in hobby.skill_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid skill level"
+        )
+
+
+def validate_hobby_lessons(hobby):
+    if len(hobby.lessons) != hobby.total_lessons:
+        raise HTTPException(
+            status_code=409,
+            detail="This hobby does not have 10 lessons yet"
+        )
+
+
+# Home
+
 @app.get("/")
 def home():
-    return {"message": "Welcome to Personal Hobby Discovery"}
+    return {
+        "message": "Welcome to HobBob",
+        "description": "Discover and learn new hobbies!"
+    }
 
+
+# Questionaire
 
 @app.get("/questions")
 def get_questions():
-    return {"questions": questions}
+    return {
+        "questions": questions
+    }
 
+
+# Hobby Recommendation
 
 @app.post("/recommend")
 def recommend(data: Questionnaire):
@@ -411,7 +481,6 @@ def recommend(data: Questionnaire):
 
     for hobby in hobbies:
 
-        # Filter out hobbies that exceed constraints
         if hobby["cost"] > budget_limits[budget]:
             continue
 
@@ -442,22 +511,21 @@ def recommend(data: Questionnaire):
         reverse=True
     )
 
-    # 1. Get the top 3 personalized recommendations
+    # Top 3 personalized recommendations
     top_recommendations = recommendations[:3]
 
-    # 2. Find hobbies that are NOT in the top 3
-    selected_names = [
+    selected_names = {
         item["hobby"] for item in top_recommendations
+    }
+
+    # Random recommendation from eligible hobbies
+    remaining_hobbies = [
+        hobby for hobby in hobbies
+        if hobby["name"] not in selected_names
+        and hobby["cost"] <= budget_limits[budget]
+        and hobby["hours"] <= time_limits[time]
     ]
 
-    remaining_hobbies = [
-    hobby for hobby in hobbies
-    if hobby["name"] not in selected_names
-    and hobby["cost"] <= budget_limits[budget]
-    and hobby["hours"] <= time_limits[time]
-]
-
-    # 3. Pick one random hobby
     random_hobby = None
 
     if remaining_hobbies:
@@ -470,10 +538,9 @@ def recommend(data: Questionnaire):
             "hours_per_week": random_choice["hours"]
         }
 
-    # 4. Create an anonymous questionnaire ID
     response_id = str(uuid4())
 
-    # 5. Save results to Snowflake
+    # Save questionnaire in SQLite
     save_questionnaire(
         response_id=response_id,
         answers=data.answers,
@@ -483,10 +550,8 @@ def recommend(data: Questionnaire):
         }
     )
 
-    # 6. Return all five options to the frontend
     return {
         "response_id": response_id,
-
         "recommendations": {
             "personalized": top_recommendations,
             "random": random_hobby,
@@ -497,159 +562,188 @@ def recommend(data: Questionnaire):
         }
     }
 
+
+# Explore All Hobbies
+
 @app.get("/hobbies")
 def get_all_hobbies():
 
-    all_hobbies = []
-
-    for hobby in hobbies:
-        all_hobbies.append({
-            "hobby": hobby["name"],
-            "description": hobby["description"],
-            "estimated_cost": hobby["cost"],
-            "hours_per_week": hobby["hours"]
-        })
-
     return {
-        "hobbies": all_hobbies
+        "hobbies": [
+            {
+                "hobby": hobby["name"],
+                "description": hobby["description"],
+                "estimated_cost": hobby["cost"],
+                "hours_per_week": hobby["hours"]
+            }
+            for hobby in hobbies
+        ]
     }
 
-from pydantic import BaseModel
 
-# Available skill levels
-class SkillSelection(BaseModel):
-    skill: str
+# Hobby Information
 
-
-# Load the selected hobby's main page
 @app.get("/hobby/{hobby_name}")
-def get_hobby_page(hobby_name: str):
+def get_hobby_info(hobby_name: str):
 
-    hobby = hobby_pages.get(hobby_name.lower())
-
-    if hobby is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Hobby not found"
-        )
-
-    return hobby.get_main_page()
-
-
-# Receive the user's selected skill level
-@app.post("/hobby/{hobby_name}/select-skill")
-def select_skill(hobby_name: str, data: SkillSelection):
-
-    hobby = hobby_pages.get(hobby_name.lower())
-
-    if hobby is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Hobby not found"
-        )
-
-    if data.skill not in hobby.skill_levels:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid skill level"
-        )
+    hobby = find_hobby(hobby_name)
 
     return {
-        "hobby": hobby.name,
-        "skill": data.skill,
-        "introduction": hobby.get_introduction(),
-        "instructions": hobby.get_instructions(data.skill),
-        "lessons": hobby.get_lessons(data.skill),
-        "quests": hobby.get_quests(data.skill)
+        "name": hobby.name,
+        "description": hobby.description,
+        "skill_levels": hobby.skill_levels,
+        "total_lessons": hobby.total_lessons,
+        "starting_lessons": hobby.starting_lessons,
+        "lessons_available": (
+            len(hobby.lessons) == hobby.total_lessons
+        )
     }
 
 
-# Get achievements for a selected hobby
-@app.post("/hobby/{hobby_name}/achievements")
-def get_hobby_achievements(
+# First Time Visit Selection
+
+@app.post("/hobby/{hobby_name}/select-skill")
+def select_skill(
     hobby_name: str,
-    data: dict
+    data: SkillSelection
 ):
 
-    hobby = hobby_pages.get(hobby_name.lower())
+    hobby = find_hobby(hobby_name)
 
-    if hobby is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Hobby not found"
-        )
+    validate_hobby_skill(hobby, data.skill)
+    validate_hobby_lessons(hobby)
 
-    skill = data.get("skill")
-    completed_quests = data.get("completed_quests", [])
-
-    if skill not in hobby.skill_levels:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid skill level"
-        )
-
-    if (
-        not isinstance(completed_quests, list)
-        or any(
-            type(index) is not int
-            for index in completed_quests
-        )
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid completed quests"
-        )
-
-    return hobby.get_achievements(
-        skill,
-        completed_quests
-    )
-
-
-class LessonCompletion(BaseModel):
-    session_id: str = Field(min_length=1)
-    skill: str
-    lesson_index: int
-    reading_finished: bool = False
-    video_finished: bool = False
-
-
-@app.post("/hobby/{hobby_name}/complete-lesson")
-def complete_lesson(hobby_name: str, data: LessonCompletion):
-
-    hobby = hobby_pages.get(hobby_name.lower())
-
-    if hobby is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Hobby not found"
-        )
-
-    if data.skill not in hobby.skill_levels:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid skill level"
-        )
-
-    # Retrieve existing progress from Snowflake
+    # Retrieve saved progress from SQLite
     completed_lessons = get_completed_lessons(
         data.session_id,
         hobby.name,
         data.skill
     )
 
-    # Validate lesson index and requirements
-    if not 0 <= data.lesson_index < len(
-        hobby.get_lessons(data.skill)
-    ):
+    all_completed = hobby.get_all_completed_lessons(
+        data.skill,
+        completed_lessons
+    )
+
+    # Generate main page with roadmap and sidebar
+    page = hobby.get_main_page(
+        skill=data.skill,
+        completed_lessons=completed_lessons,
+        completed_quests=[]
+    )
+
+    return {
+        "hobby": hobby.name,
+        "skill": data.skill,
+        "starting_lesson": hobby.get_starting_lesson(
+            data.skill
+        ),
+        "completed_lessons": all_completed,
+        "page": page
+    }
+
+
+# Get Specific Lesson
+
+@app.get("/hobby/{hobby_name}/lesson/{lesson_number}")
+def get_lesson(
+    hobby_name: str,
+    lesson_number: int,
+    skill: str,
+    session_id: str
+):
+
+    hobby = find_hobby(hobby_name)
+
+    validate_hobby_skill(hobby, skill)
+    validate_hobby_lessons(hobby)
+
+    if not 1 <= lesson_number <= hobby.total_lessons:
         raise HTTPException(
             status_code=400,
-            detail="Invalid lesson index"
+            detail="Invalid lesson number"
         )
 
+    completed_lessons = get_completed_lessons(
+        session_id,
+        hobby.name,
+        skill
+    )
+
+    if not hobby.is_lesson_unlocked(
+        skill,
+        lesson_number,
+        completed_lessons
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Lesson is locked"
+        )
+
+    return {
+        "hobby": hobby.name,
+        "skill": skill,
+        "lesson_number": lesson_number,
+        "lesson": hobby.get_lesson(lesson_number),
+        "status": hobby.get_lesson_status(
+            skill,
+            lesson_number,
+            completed_lessons
+        ),
+        "previous_unlocked": hobby.can_go_previous(
+            skill,
+            lesson_number
+        ),
+        "next_unlocked": hobby.can_go_next(
+            skill,
+            lesson_number,
+            completed_lessons
+        )
+    }
+
+
+# Complete Lesson
+
+@app.post("/hobby/{hobby_name}/complete-lesson")
+def complete_lesson(
+    hobby_name: str,
+    data: LessonCompletion
+):
+
+    hobby = find_hobby(hobby_name)
+
+    validate_hobby_skill(hobby, data.skill)
+    validate_hobby_lessons(hobby)
+
+    completed_lessons = get_completed_lessons(
+        data.session_id,
+        hobby.name,
+        data.skill
+    )
+
+    # Include automatically completed lessons
+    all_completed = hobby.get_all_completed_lessons(
+        data.skill,
+        completed_lessons
+    )
+
+    # Previously completed lessons stay unlocked
+    if data.lesson_number in all_completed:
+        return {
+            "message": "Lesson already completed",
+            "lesson_number": data.lesson_number,
+            "completed_lessons": all_completed,
+            "next_lesson_unlocked": hobby.can_go_next(
+                data.skill,
+                data.lesson_number,
+                completed_lessons
+            )
+        }
+
+    # Validate completion requirements
     can_complete = hobby.can_complete_lesson(
         skill=data.skill,
-        lesson_index=data.lesson_index,
+        lesson_number=data.lesson_number,
         reading_finished=data.reading_finished,
         video_finished=data.video_finished,
         completed_lessons=completed_lessons
@@ -661,59 +755,62 @@ def complete_lesson(hobby_name: str, data: LessonCompletion):
             detail="Lesson requirements not completed"
         )
 
-    # Save completion in Snowflake
+    # Save progress to SQLite
     save_lesson_progress(
         session_id=data.session_id,
         hobby_name=hobby.name,
         skill=data.skill,
-        lesson_index=data.lesson_index,
+        lesson_number=data.lesson_number,
         reading_finished=data.reading_finished,
         video_finished=data.video_finished
     )
 
-    # Re-read Snowflake to confirm the saved result
+    # Retrieve updated progress
     updated_lessons = get_completed_lessons(
         data.session_id,
         hobby.name,
         data.skill
     )
 
-    if data.lesson_index not in updated_lessons:
+    if data.lesson_number not in updated_lessons:
         raise HTTPException(
             status_code=500,
             detail="Lesson completion could not be verified"
         )
 
     return {
-        "message": "Lesson progress saved successfully",
-        "lesson_index": data.lesson_index,
-        "completed_lessons": updated_lessons,
+        "message": "Lesson completed successfully",
+        "lesson_number": data.lesson_number,
+        "completed_lessons":
+            hobby.get_all_completed_lessons(
+                data.skill,
+                updated_lessons
+            ),
         "next_lesson_unlocked": hobby.can_go_next(
             data.skill,
-            data.lesson_index,
+            data.lesson_number,
+            updated_lessons
+        ),
+        "progress": hobby.get_lesson_progress(
+            data.skill,
             updated_lessons
         )
     }
 
+
+# Lesson Roadmap and Progress
+
 @app.get("/hobby/{hobby_name}/progress/{skill}")
-def get_lesson_progress(
+def get_progress(
     hobby_name: str,
     skill: str,
     session_id: str
 ):
-    hobby = hobby_pages.get(hobby_name.lower())
 
-    if hobby is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Hobby not found"
-        )
+    hobby = find_hobby(hobby_name)
 
-    if skill not in hobby.skill_levels:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid skill level"
-        )
+    validate_hobby_skill(hobby, skill)
+    validate_hobby_lessons(hobby)
 
     completed_lessons = get_completed_lessons(
         session_id,
@@ -724,9 +821,57 @@ def get_lesson_progress(
     return {
         "hobby": hobby.name,
         "skill": skill,
-        "completed_lessons": completed_lessons,
+        "completed_lessons":
+            hobby.get_all_completed_lessons(
+                skill,
+                completed_lessons
+            ),
         "progress": hobby.get_lesson_progress(
             skill,
             completed_lessons
+        ),
+        "roadmap": hobby.get_roadmap(
+            skill,
+            completed_lessons
+        )
+    }
+
+
+# =========================================
+# ACHIEVEMENTS
+# =========================================
+
+@app.post("/hobby/{hobby_name}/achievements")
+def get_achievements(
+    hobby_name: str,
+    data: AchievementRequest
+):
+
+    hobby = find_hobby(hobby_name)
+
+    validate_hobby_skill(hobby, data.skill)
+    validate_hobby_lessons(hobby)
+
+    completed_lessons = get_completed_lessons(
+        data.session_id,
+        hobby.name,
+        data.skill
+    )
+
+    if any(
+        type(index) is not int or index < 0
+        for index in data.completed_quests
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid completed quests"
+        )
+
+    return {
+        "hobby": hobby.name,
+        "achievements": hobby.get_achievements(
+            skill=data.skill,
+            completed_quests=data.completed_quests,
+            completed_lessons=completed_lessons
         )
     }
