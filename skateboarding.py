@@ -14,9 +14,7 @@ class Skateboarding(Hobby):
             )
         )
 
-        # ---------------------------------
-        # INTRODUCTION (ALL SKILL LEVELS)
-        # ---------------------------------
+        # Instroduction (All Skills)
 
         self.introduction = (
             "Skateboarding is a hobby that combines creativity, "
@@ -27,9 +25,7 @@ class Skateboarding(Hobby):
             "including a helmet, and practice in safe environments."
         )
 
-        # ---------------------------------
-        # INSTRUCTIONS
-        # ---------------------------------
+        # Instructions
 
         self.instructions = {
             "Beginner": [
@@ -54,9 +50,7 @@ class Skateboarding(Hobby):
             ]
         }
 
-        # ---------------------------------
-        # BEGINNER LESSONS
-        # ---------------------------------
+        # Lessons (Beginner)
 
         self.lessons["Beginner"] = [
             {
@@ -110,9 +104,7 @@ class Skateboarding(Hobby):
             }
         ]
 
-        # ---------------------------------
-        # INTERMEDIATE LESSONS
-        # ---------------------------------
+        # Lession (Intermediate)
 
         self.lessons["Intermediate"] = [
             {
@@ -147,9 +139,7 @@ class Skateboarding(Hobby):
             }
         ]
 
-        # ---------------------------------
-        # EXPERT LESSONS
-        # ---------------------------------
+        # Lesson (Expert)
 
         self.lessons["Expert"] = [
             {
@@ -184,9 +174,7 @@ class Skateboarding(Hobby):
             }
         ]
 
-        # ---------------------------------
-        # QUESTS
-        # ---------------------------------
+        # Quest
 
         self.quests = {
             "Beginner": [
