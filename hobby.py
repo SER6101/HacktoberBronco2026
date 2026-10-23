@@ -1,32 +1,29 @@
+
 class Hobby:
 
     def __init__(self, name, description):
         self.name = name
         self.description = description
 
-        # Available skill levels
+        # Skill levels selected from the first-visit popup
         self.skill_levels = [
             "Beginner",
             "Intermediate",
             "Expert"
         ]
 
-        # Static introduction for all skill levels
-        self.introduction = description
-
-        # Skill-specific instructions
-        self.instructions = {
-            "Beginner": [],
-            "Intermediate": [],
-            "Expert": []
+        # Starting lesson for each skill level
+        self.starting_lessons = {
+            "Beginner": 1,
+            "Intermediate": 4,
+            "Expert": 7
         }
 
-        # Skill-specific lessons
-        self.lessons = {
-            "Beginner": [],
-            "Intermediate": [],
-            "Expert": []
-        }
+        # Every hobby has 10 lesson nodes
+        self.total_lessons = 10
+
+        # Child classes define their 10 lessons
+        self.lessons = []
 
         # Skill-specific quests
         self.quests = {
@@ -35,179 +32,320 @@ class Hobby:
             "Expert": []
         }
 
+    # SKill Validation
+
+    def validate_skill(self, skill):
+        if skill not in self.skill_levels:
+            raise ValueError(
+                "Skill must be Beginner, Intermediate, or Expert"
+            )
+
+    def get_starting_lesson(self, skill):
+        self.validate_skill(skill)
+        return self.starting_lessons[skill]
+
+    # Automatic Lesson Completion
+
+    def get_auto_completed_lessons(self, skill):
+        start = self.get_starting_lesson(skill)
+
+        # Intermediate: [1, 2, 3]
+        # Expert: [1, 2, 3, 4, 5, 6]
+        return list(range(1, start))
+
+    def get_all_completed_lessons(
+        self,
+        skill,
+        completed_lessons
+    ):
+        auto_completed = self.get_auto_completed_lessons(skill)
+
+        all_completed = (
+            set(auto_completed) |
+            set(completed_lessons)
+        )
+
+        return sorted(
+            number
+            for number in all_completed
+            if type(number) is int
+            and 1 <= number <= self.total_lessons
+        )
+
     # Main Hobby Page
 
-    def get_main_page(self):
+    def get_main_page(
+        self,
+        skill,
+        completed_lessons=None,
+        completed_quests=None
+    ):
+        self.validate_skill(skill)
+
+        if completed_lessons is None:
+            completed_lessons = []
+
+        if completed_quests is None:
+            completed_quests = []
+
+        progress = self.get_lesson_progress(
+            skill,
+            completed_lessons
+        )
+
+        current_lesson = progress["current_lesson"]
+
         return {
             "name": self.name,
             "description": self.description,
-            "introduction": self.introduction,
-            "skill_levels": self.skill_levels,
-            "sidebar": [
-                "Introduction",
-                "Lessons",
-                "Quests",
-                "Achievements"
-            ]
+            "skill": skill,
+
+            # Roadmap at the top
+            "roadmap": self.get_roadmap(
+                skill,
+                completed_lessons
+            ),
+
+            # Current lesson in the center
+            "current_lesson": current_lesson,
+            "lesson": self.get_lesson(current_lesson),
+
+            # Right sidebar
+            "sidebar": {
+                "position": "right",
+                "progress": progress,
+                "achievements": self.get_achievements(
+                    skill,
+                    completed_quests,
+                    completed_lessons
+                ),
+                "quests": self.get_quests(skill)
+            }
         }
 
-    # Introduction
-
-    def get_introduction(self):
-        # Same introduction regardless of skill level
-        return self.introduction
-
-    # Instruction
-
-    def get_instructions(self, skill):
-        self.validate_skill(skill)
-        return self.instructions[skill]
-
-    # Lesson
+    # Lesson Content
 
     def get_lessons(self, skill):
         self.validate_skill(skill)
-        return self.lessons[skill]
+        return self.lessons
 
-    def get_lesson(self, skill, lesson_index):
-        lessons = self.get_lessons(skill)
+    def get_lesson(self, lesson_number):
+        if not 1 <= lesson_number <= self.total_lessons:
+            raise ValueError("Invalid lesson number")
 
-        if not 0 <= lesson_index < len(lessons):
-            raise ValueError("Invalid lesson index")
+        if len(self.lessons) != self.total_lessons:
+            raise ValueError(
+                "Each hobby must define exactly 10 lessons"
+            )
 
-        return lessons[lesson_index]
+        return self.lessons[lesson_number - 1]
 
-    # Check if the next lesson is unlocked
+    # Lesson Unlock
+
     def is_lesson_unlocked(
         self,
         skill,
-        lesson_index,
+        lesson_number,
         completed_lessons
     ):
-        lessons = self.get_lessons(skill)
+        self.validate_skill(skill)
 
-        if not 0 <= lesson_index < len(lessons):
+        if not 1 <= lesson_number <= self.total_lessons:
             return False
 
-        # First lesson is always available
-        if lesson_index == 0:
+        all_completed = self.get_all_completed_lessons(
+            skill,
+            completed_lessons
+        )
+
+        # First lesson is always unlocked
+        if lesson_number == 1:
             return True
 
-        # All previous lessons must be completed
+        # All earlier lessons must be completed
         return all(
-            index in completed_lessons
-            for index in range(lesson_index)
+            number in all_completed
+            for number in range(1, lesson_number)
         )
 
-    # Previous lesson is accessible regardless of completion
-    def can_go_previous(self, skill, lesson_index):
+    # Previous lesson never requires completion
+    def can_go_previous(self, skill, lesson_number):
         self.validate_skill(skill)
-    
-        return lesson_index > 0 and lesson_index < len(
-            self.get_lessons(skill)
-        )
-    
-    # Next lesson requires current lesson completion
+
+        return 1 < lesson_number <= self.total_lessons
+
+    # Next lesson requires the current lesson completed
     def can_go_next(
         self,
         skill,
-        lesson_index,
+        lesson_number,
         completed_lessons
     ):
-        lessons = self.get_lessons(skill)
+        self.validate_skill(skill)
 
-        # Check whether a next lesson exists
-        if not 0 <= lesson_index < len(lessons) - 1:
+        # No next lesson after Lesson 10
+        if not 1 <= lesson_number < self.total_lessons:
             return False
 
-        # Check whether the next lesson is unlocked
-        return self.is_lesson_unlocked(
+        all_completed = self.get_all_completed_lessons(
             skill,
-            lesson_index + 1,
             completed_lessons
         )
-    
 
-    # Check whether a lesson can be completed
+        return self.is_lesson_unlocked(
+            skill,
+            lesson_number + 1,
+            all_completed
+        )
+
+    # Lesson Completion
+
     def can_complete_lesson(
         self,
         skill,
-        lesson_index,
+        lesson_number,
         reading_finished,
         video_finished,
         completed_lessons
     ):
         if not self.is_lesson_unlocked(
             skill,
-            lesson_index,
+            lesson_number,
             completed_lessons
         ):
             return False
 
-        lesson = self.get_lesson(skill, lesson_index)
+        lesson = self.get_lesson(lesson_number)
 
         has_reading = bool(lesson.get("reading"))
         has_video = bool(lesson.get("video_url"))
 
-        # A lesson must contain reading or video content
         if not has_reading and not has_video:
             return False
 
-        # Completing either available format is sufficient
+        # Reading OR video completion is sufficient
         return (
             (has_reading and reading_finished)
             or
             (has_video and video_finished)
         )
 
-    # Return completion information for a lesson
+    # Lesson Status
+
     def get_lesson_status(
         self,
         skill,
-        lesson_index,
+        lesson_number,
         completed_lessons
     ):
-        lesson = self.get_lesson(skill, lesson_index)
+        lesson = self.get_lesson(lesson_number)
 
-        completed = lesson_index in completed_lessons
-
-        unlocked = self.is_lesson_unlocked(
+        all_completed = self.get_all_completed_lessons(
             skill,
-            lesson_index,
             completed_lessons
         )
 
         return {
-            "lesson_index": lesson_index,
+            "lesson_number": lesson_number,
             "title": lesson.get("title", ""),
-            "unlocked": unlocked,
-            "completed": completed
+            "completed": lesson_number in all_completed,
+            "unlocked": self.is_lesson_unlocked(
+                skill,
+                lesson_number,
+                all_completed
+            ),
+            "auto_completed": (
+                lesson_number in
+                self.get_auto_completed_lessons(skill)
+            )
         }
 
-    # Calculate lesson progress
+    # Lesson Roadmap
+
+    def get_roadmap(self, skill, completed_lessons):
+        all_completed = self.get_all_completed_lessons(
+            skill,
+            completed_lessons
+        )
+
+        current_lesson = self.get_current_lesson(
+            skill,
+            completed_lessons
+        )
+
+        roadmap = []
+
+        for number in range(1, self.total_lessons + 1):
+            roadmap.append({
+                "node": number,
+                "title": self.get_lesson(number).get(
+                    "title", ""
+                ),
+                "completed": number in all_completed,
+                "auto_completed": (
+                    number in
+                    self.get_auto_completed_lessons(skill)
+                ),
+                "unlocked": self.is_lesson_unlocked(
+                    skill,
+                    number,
+                    all_completed
+                ),
+                "current": number == current_lesson
+            })
+
+        return roadmap
+
+    # Current Lesson
+
+    def get_current_lesson(
+        self,
+        skill,
+        completed_lessons
+    ):
+        start = self.get_starting_lesson(skill)
+
+        all_completed = self.get_all_completed_lessons(
+            skill,
+            completed_lessons
+        )
+
+        # Find the first unfinished lesson
+        for number in range(start, self.total_lessons + 1):
+            if number not in all_completed:
+                return number
+
+        # All lessons completed
+        return self.total_lessons
+
+    # Lesson Progress
+
     def get_lesson_progress(
         self,
         skill,
         completed_lessons
     ):
-        lessons = self.get_lessons(skill)
-
-        valid_completed = set(completed_lessons) & set(
-            range(len(lessons))
+        all_completed = self.get_all_completed_lessons(
+            skill,
+            completed_lessons
         )
 
-        total = len(lessons)
-        completed = len(valid_completed)
+        completed = len(all_completed)
+        total = self.total_lessons
 
-        percentage = (
-            round(completed / total * 100, 1)
-            if total > 0 else 0
+        percentage = round(
+            completed / total * 100, 1
         )
 
         return {
             "completed": completed,
             "total": total,
-            "percentage": percentage
+            "percentage": percentage,
+            "completed_lessons": all_completed,
+            "current_lesson": self.get_current_lesson(
+                skill,
+                completed_lessons
+            )
         }
 
     # Quest
@@ -230,15 +368,13 @@ class Hobby:
         total = len(quests)
         completed = len(valid_completed)
 
-        percentage = (
-            round(completed / total * 100, 1)
-            if total > 0 else 0
-        )
-
         return {
             "completed": completed,
             "total": total,
-            "percentage": percentage
+            "percentage": (
+                round(completed / total * 100, 1)
+                if total > 0 else 0
+            )
         }
 
     # Achievements
@@ -252,41 +388,28 @@ class Hobby:
         if completed_lessons is None:
             completed_lessons = []
 
-        quest_progress = self.get_quest_progress(
-            skill,
-            completed_quests
-        )
-
         lesson_progress = self.get_lesson_progress(
             skill,
             completed_lessons
         )
 
-        quest_count = quest_progress["completed"]
+        quest_progress = self.get_quest_progress(
+            skill,
+            completed_quests
+        )
+
         lesson_count = lesson_progress["completed"]
+        quest_count = quest_progress["completed"]
 
         return {
+            "first_lesson": lesson_count >= 1,
+            "three_lessons": lesson_count >= 3,
+            "all_lessons": lesson_count == self.total_lessons,
+
             "first_quest": quest_count >= 1,
-
             "three_quests": quest_count >= 3,
-
-            "level_complete": (
+            "all_quests": (
                 quest_progress["total"] > 0
                 and quest_count == quest_progress["total"]
-            ),
-
-            "first_lesson": lesson_count >= 1,
-
-            "all_lessons": (
-                lesson_progress["total"] > 0
-                and lesson_count == lesson_progress["total"]
             )
         }
-
-    # Skill Validation
-
-    def validate_skill(self, skill):
-        if skill not in self.skill_levels:
-            raise ValueError(
-                "Skill must be Beginner, Intermediate, or Expert"
-            )
