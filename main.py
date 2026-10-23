@@ -62,6 +62,7 @@ questions = [
 ]
 
 # Hobby catalog with preferences and requirements
+# Hobby catalog with preferences and requirements
 hobbies = [
     {
         "name": "Drawing",
@@ -116,6 +117,222 @@ hobbies = [
         "cost": 25,
         "hours": 2,
         "description": "Capture interesting moments using a camera or phone."
+    },
+    {
+        "name": "Skateboarding",
+        "goals": ["Fitness", "Learning"],
+        "activities": ["Physical activities"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 75,
+        "hours": 3,
+        "description": "Learn skateboard tricks, improve balance, and explore skateparks."
+    },
+    {
+        "name": "Painting",
+        "goals": ["Creativity", "Relaxation"],
+        "activities": ["Creating"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 30,
+        "hours": 2,
+        "description": "Create artwork using watercolors, acrylics, or other paints."
+    },
+    {
+        "name": "Gardening",
+        "goals": ["Relaxation", "Learning"],
+        "activities": ["Creating", "Exploring"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 20,
+        "hours": 2,
+        "description": "Grow plants, flowers, vegetables, and herbs."
+    },
+    {
+        "name": "Reading",
+        "goals": ["Relaxation", "Learning"],
+        "activities": ["Exploring"],
+        "social": ["Alone", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Discover new stories, ideas, and knowledge through books."
+    },
+    {
+        "name": "Creative Writing",
+        "goals": ["Creativity", "Relaxation"],
+        "activities": ["Creating"],
+        "social": ["Alone", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Write short stories, poetry, or personal essays."
+    },
+    {
+        "name": "Cycling",
+        "goals": ["Fitness", "Relaxation"],
+        "activities": ["Physical activities", "Exploring"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 100,
+        "hours": 3,
+        "description": "Explore your surroundings while improving endurance."
+    },
+    {
+        "name": "Running",
+        "goals": ["Fitness", "Relaxation"],
+        "activities": ["Physical activities"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Improve stamina and enjoy outdoor exercise."
+    },
+    {
+        "name": "Basketball",
+        "goals": ["Fitness", "Learning"],
+        "activities": ["Physical activities"],
+        "social": ["Small group", "Meeting people", "Either"],
+        "cost": 25,
+        "hours": 3,
+        "description": "Practice shooting, dribbling, and teamwork."
+    },
+    {
+        "name": "Soccer",
+        "goals": ["Fitness", "Learning"],
+        "activities": ["Physical activities"],
+        "social": ["Small group", "Meeting people", "Either"],
+        "cost": 25,
+        "hours": 3,
+        "description": "Improve coordination, endurance, and teamwork."
+    },
+    {
+        "name": "Swimming",
+        "goals": ["Fitness", "Relaxation"],
+        "activities": ["Physical activities"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 25,
+        "hours": 2,
+        "description": "Build endurance and enjoy exercise in the water."
+    },
+    {
+        "name": "Dancing",
+        "goals": ["Fitness", "Creativity"],
+        "activities": ["Physical activities", "Creating"],
+        "social": ["Alone", "Small group", "Meeting people", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Explore dance styles and express yourself through movement."
+    },
+    {
+        "name": "Playing Guitar",
+        "goals": ["Learning", "Creativity"],
+        "activities": ["Creating"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 100,
+        "hours": 3,
+        "description": "Learn chords, songs, and music composition."
+    },
+    {
+        "name": "Playing Piano",
+        "goals": ["Learning", "Creativity"],
+        "activities": ["Creating", "Problem solving"],
+        "social": ["Alone", "Either"],
+        "cost": 100,
+        "hours": 3,
+        "description": "Learn musical techniques and play your favorite songs."
+    },
+    {
+        "name": "Singing",
+        "goals": ["Creativity", "Learning"],
+        "activities": ["Creating"],
+        "social": ["Alone", "Small group", "Meeting people", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Improve your voice and explore musical expression."
+    },
+    {
+        "name": "Chess",
+        "goals": ["Learning", "Relaxation"],
+        "activities": ["Problem solving"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Develop strategic thinking through chess matches."
+    },
+    {
+        "name": "Video Gaming",
+        "goals": ["Relaxation", "Learning"],
+        "activities": ["Problem solving", "Exploring"],
+        "social": ["Alone", "Small group", "Meeting people", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Explore different game genres and interactive worlds."
+    },
+    {
+        "name": "Board Games",
+        "goals": ["Relaxation", "Learning"],
+        "activities": ["Problem solving"],
+        "social": ["Small group", "Meeting people", "Either"],
+        "cost": 20,
+        "hours": 2,
+        "description": "Enjoy strategy and cooperative games with others."
+    },
+    {
+        "name": "Pottery",
+        "goals": ["Creativity", "Relaxation"],
+        "activities": ["Creating"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 50,
+        "hours": 2,
+        "description": "Create decorative or functional objects using clay."
+    },
+    {
+        "name": "Knitting",
+        "goals": ["Relaxation", "Creativity"],
+        "activities": ["Creating"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 15,
+        "hours": 2,
+        "description": "Create scarves, clothing, and handmade accessories."
+    },
+    {
+        "name": "Birdwatching",
+        "goals": ["Relaxation", "Learning"],
+        "activities": ["Exploring"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 0,
+        "hours": 2,
+        "description": "Observe birds and learn about local wildlife."
+    },
+    {
+        "name": "Camping",
+        "goals": ["Relaxation", "Learning"],
+        "activities": ["Exploring"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 100,
+        "hours": 10,
+        "description": "Spend time outdoors and learn basic camping skills."
+    },
+    {
+        "name": "Rock Climbing",
+        "goals": ["Fitness", "Learning"],
+        "activities": ["Physical activities", "Problem solving"],
+        "social": ["Alone", "Small group", "Meeting people", "Either"],
+        "cost": 50,
+        "hours": 3,
+        "description": "Develop strength and problem-solving skills through climbing."
+    },
+    {
+        "name": "Origami",
+        "goals": ["Creativity", "Relaxation"],
+        "activities": ["Creating", "Problem solving"],
+        "social": ["Alone", "Small group", "Either"],
+        "cost": 0,
+        "hours": 1,
+        "description": "Create paper sculptures through folding techniques."
+    },
+    {
+        "name": "Learning a Language",
+        "goals": ["Learning", "Creativity"],
+        "activities": ["Problem solving", "Exploring"],
+        "social": ["Alone", "Small group", "Meeting people", "Either"],
+        "cost": 0,
+        "hours": 3,
+        "description": "Explore new languages and cultures through practice."
     }
 ]
 
