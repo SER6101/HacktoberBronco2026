@@ -1,48 +1,76 @@
 import sqlite3
 import json
+from pathlib import Path
 
-DB_FILE = "hobby_app.db"
+
+# Local SQLite database file
+DB_FILE = Path(__file__).resolve().parent / "hobby_app.db"
+
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn = sqlite3.connect(DB_FILE, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
+    with get_connection() as conn:
 
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS questionnaire_responses (
-            response_id TEXT PRIMARY KEY,
-            question_1 TEXT,
-            question_2 TEXT,
-            question_3 TEXT,
-            question_4 TEXT,
-            question_5 TEXT,
-            recommendations TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+        # Store questionnaire answers
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS questionnaire_responses (
+                response_id TEXT PRIMARY KEY,
+                question_1 TEXT,
+                question_2 TEXT,
+                question_3 TEXT,
+                question_4 TEXT,
+                question_5 TEXT,
+                recommendations TEXT
+            )
+        """)
 
-init_db()
+        # Store completed lessons
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS lesson_progress (
+                session_id TEXT NOT NULL,
+                hobby_name TEXT NOT NULL,
+                skill_level TEXT NOT NULL,
+                lesson_number INTEGER NOT NULL,
+                reading_finished INTEGER DEFAULT 0,
+                video_finished INTEGER DEFAULT 0,
+                completed INTEGER DEFAULT 0,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
-def save_questionnaire(response_id, answers, recommendations):
-    connection = get_connection()
-    try:
-        cursor = connection.cursor()
-        cursor.execute(
+                PRIMARY KEY (
+                    session_id,
+                    hobby_name,
+                    skill_level,
+                    lesson_number
+                )
+            )
+        """)
+
+
+
+def save_questionnaire(
+    response_id,
+    answers,
+    recommendations
+):
+    if len(answers) != 5:
+        raise ValueError("Exactly five answers are required")
+
+    with get_connection() as conn:
+        conn.execute(
             """
-            INSERT OR REPLACE INTO QUESTIONNAIRE_RESPONSES (
-                RESPONSE_ID,
-                QUESTION_1,
-                QUESTION_2,
-                QUESTION_3,
-                QUESTION_4,
-                QUESTION_5,
-                RECOMMENDATIONS
+            INSERT INTO questionnaire_responses (
+                response_id,
+                question_1,
+                question_2,
+                question_3,
+                question_4,
+                question_5,
+                recommendations
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
@@ -56,69 +84,88 @@ def save_questionnaire(response_id, answers, recommendations):
                 json.dumps(recommendations)
             )
         )
-        connection.commit()
-    finally:
-        connection.close()
 
-def get_completed_lessons(session_id, hobby_name, skill):
-    connection = get_connection()
-    try:
-        cursor = connection.cursor()
-        cursor.execute(
+
+
+def get_completed_lessons(
+    session_id,
+    hobby_name,
+    skill
+):
+    with get_connection() as conn:
+        rows = conn.execute(
             """
-            SELECT DISTINCT LESSON INDEX
-            FROM LESSON_PROGRESS
-            WHERE SESSION_ID = ? 
-            AND HOBBY_NAME = ? 
-            AND SKILL = ?
-            AND COMPLETED = 1
-            ORDER BY LESSON_INDEX
+            SELECT DISTINCT lesson_number
+            FROM lesson_progress
+            WHERE session_id = ?
+              AND hobby_name = ?
+              AND skill_level = ?
+              AND completed = 1
+            ORDER BY lesson_number
             """,
-            (session_id, hobby_name, skill)
-        )
-        return [row[0] for row in cursor.fetchall()]
-    finally:
-        connection.close()
+            (
+                session_id,
+                hobby_name,
+                skill
+            )
+        ).fetchall()
+
+    return [row["lesson_number"] for row in rows]
+
 
 def save_lesson_progress(
     session_id,
     hobby_name,
     skill,
-    lesson_index,
+    lesson_number,
     reading_finished,
     video_finished
 ):
-    connection = get_connection()
-    try:
-        cursor = connection.cursor()
-        cursor.execute(
+    if not 1 <= lesson_number <= 10:
+        raise ValueError("Lesson number must be between 1 and 10")
+
+    with get_connection() as conn:
+        conn.execute(
             """
-            INSERT OR REPLACE INTO LESSON_PROGRESS (
-                SESSION_ID,
-                HOBBY_NAME,
-                SKILL,
-                LESSON_INDEX,
-                READING_FINISHED,
-                VIDEO_FINISHED,
-                COMPLETED
+            INSERT INTO lesson_progress (
+                session_id,
+                hobby_name,
+                skill_level,
+                lesson_number,
+                reading_finished,
+                video_finished,
+                completed
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-            ON CONFLICT(SESSION_ID, HOBBY_NAME, SKILL_LEVEL, LESSON_INDEX) 
+            VALUES (?, ?, ?, ?, ?, ?, 1)
+
+            ON CONFLICT (
+                session_id,
+                hobby_name,
+                skill_level,
+                lesson_number
+            )
             DO UPDATE SET
-                READING_FINISHED = READING_FINISHED OR excluded.READING_FINISHED,
-                VIDEO_FINISHED = VIDEO_FINISHED OR excluded.VIDEO_FINISHED,
-                COMPLETED = 1,
-                UPDATED_AT = CURRENT_TIMESTAMP
+                reading_finished = MAX(
+                    lesson_progress.reading_finished,
+                    excluded.reading_finished
+                ),
+                video_finished = MAX(
+                    lesson_progress.video_finished,
+                    excluded.video_finished
+                ),
+                completed = 1,
+                updated_at = CURRENT_TIMESTAMP
             """,
             (
                 session_id,
                 hobby_name,
                 skill,
-                lesson_index,
-                1 if reading_finished else 0,
-                1 if video_finished else 0,
+                lesson_number,
+                int(reading_finished),
+                int(video_finished)
             )
         )
-        connection.commit()
-    finally:
-        connection.close()
+
+
+
+init_db()
