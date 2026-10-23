@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from uuid import uuid4
 
 from hobby import Hobby
+from skateboarding import Skateboarding
 
 from database import (
     save_questionnaire,
@@ -352,10 +353,13 @@ hobby_pages = {}
 for hobby_data in hobbies:
     name = hobby_data["name"]
 
-    hobby_pages[name.lower()] = Hobby(
-        name=name,
-        description=hobby_data["description"]
-    )
+    if name == "Skateboarding":
+        hobby_pages[name.lower()] = Skateboarding()
+    else:
+        hobby_pages[name.lower()] = Hobby(
+            name=name,
+            description=hobby_data["description"]
+        )
 
 class Questionnaire(BaseModel):
     answers: list[str]
