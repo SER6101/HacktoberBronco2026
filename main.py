@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from uuid import uuid4
 from database import save_questionnaire
+from hobby import Hobby
 
 
 app = FastAPI(title="Personal Hobby Discovery")
@@ -336,6 +337,17 @@ hobbies = [
     }
 ]
 
+# Create a page object for each hobby
+hobby_pages = {}
+
+for hobby_data in hobbies:
+    name = hobby_data["name"]
+
+    hobby_pages[name.lower()] = Hobby(
+        name=name,
+        description=hobby_data["description"]
+    )
+        )
 
 class Questionnaire(BaseModel):
     answers: list[str]
@@ -489,3 +501,92 @@ def get_all_hobbies():
     return {
         "hobbies": all_hobbies
     }
+
+from pydantic import BaseModel
+
+# Available skill levels
+class SkillSelection(BaseModel):
+    skill: str
+
+
+# Load the selected hobby's main page
+@app.get("/hobby/{hobby_name}")
+def get_hobby_page(hobby_name: str):
+
+    hobby = hobby_pages.get(hobby_name.lower())
+
+    if hobby is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Hobby not found"
+        )
+
+    return hobby.get_main_page()
+
+
+# Receive the user's selected skill level
+@app.post("/hobby/{hobby_name}/select-skill")
+def select_skill(hobby_name: str, data: SkillSelection):
+
+    hobby = hobby_pages.get(hobby_name.lower())
+
+    if hobby is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Hobby not found"
+        )
+
+    if data.skill not in hobby.skill_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid skill level"
+        )
+
+    return {
+        "hobby": hobby.name,
+        "skill": data.skill,
+        "instructions": hobby.get_instructions(data.skill),
+        "quests": hobby.get_quests(data.skill)
+    }
+
+
+# Get achievements for a selected hobby
+@app.post("/hobby/{hobby_name}/achievements")
+def get_hobby_achievements(
+    hobby_name: str,
+    data: dict
+):
+
+    hobby = hobby_pages.get(hobby_name.lower())
+
+    if hobby is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Hobby not found"
+        )
+
+    skill = data.get("skill")
+    completed_quests = data.get("completed_quests", [])
+
+    if skill not in hobby.skill_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid skill level"
+        )
+
+    if (
+        not isinstance(completed_quests, list)
+        or any(
+            type(index) is not int
+            for index in completed_quests
+        )
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid completed quests"
+        )
+
+    return hobby.get_achievements(
+        skill,
+        completed_quests
+    )
