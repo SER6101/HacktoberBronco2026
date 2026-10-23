@@ -601,43 +601,6 @@ def get_hobby_achievements(
         completed_quests
     )
 
-def complete_lesson(hobby_name: str, data: LessonCompletion):
-
-    hobby = hobby_pages.get(hobby_name.lower())
-
-    if hobby is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Hobby not found"
-        )
-
-    # Check lesson completion requirements
-    can_complete = hobby.can_complete_lesson(
-        skill=data.skill,
-        lesson_index=data.lesson_index,
-        reading_finished=data.reading_finished,
-        video_finished=data.video_finished,
-        completed_lessons=data.completed_lessons
-    )
-
-    if not can_complete:
-        raise HTTPException(
-            status_code=400,
-            detail="Lesson requirements not completed"
-        )
-
-    return {
-        "message": "Lesson completed!",
-        "lesson_index": data.lesson_index,
-        "next_lesson_unlocked": hobby.can_go_next(
-            data.skill,
-            data.lesson_index,
-            data.completed_lessons + [data.lesson_index]
-        )
-    }
-
-from pydantic import BaseModel, Field
-
 
 class LessonCompletion(BaseModel):
     session_id: str = Field(min_length=1)
