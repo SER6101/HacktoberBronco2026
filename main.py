@@ -643,3 +643,131 @@ def complete_lesson(hobby_name: str, data: LessonCompletion):
             data.completed_lessons + [data.lesson_index]
         )
     }
+
+from pydantic import BaseModel, Field
+
+
+class LessonCompletion(BaseModel):
+    session_id: str = Field(min_length=1)
+    skill: str
+    lesson_index: int
+    reading_finished: bool = False
+    video_finished: bool = False
+
+
+@app.post("/hobby/{hobby_name}/complete-lesson")
+def complete_lesson(hobby_name: str, data: LessonCompletion):
+
+    hobby = hobby_pages.get(hobby_name.lower())
+
+    if hobby is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Hobby not found"
+        )
+
+    if data.skill not in hobby.skill_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid skill level"
+        )
+
+    # Retrieve existing progress from Snowflake
+    completed_lessons = get_completed_lessons(
+        data.session_id,
+        hobby.name,
+        data.skill
+    )
+
+    # Validate lesson index and requirements
+    if not 0 <= data.lesson_index < len(
+        hobby.get_lessons(data.skill)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid lesson index"
+        )
+
+    can_complete = hobby.can_complete_lesson(
+        skill=data.skill,
+        lesson_index=data.lesson_index,
+        reading_finished=data.reading_finished,
+        video_finished=data.video_finished,
+        completed_lessons=completed_lessons
+    )
+
+    if not can_complete:
+        raise HTTPException(
+            status_code=400,
+            detail="Lesson requirements not completed"
+        )
+
+    # Save completion in Snowflake
+    save_lesson_progress(
+        session_id=data.session_id,
+        hobby_name=hobby.name,
+        skill=data.skill,
+        lesson_index=data.lesson_index,
+        reading_finished=data.reading_finished,
+        video_finished=data.video_finished
+    )
+
+    # Re-read Snowflake to confirm the saved result
+    updated_lessons = get_completed_lessons(
+        data.session_id,
+        hobby.name,
+        data.skill
+    )
+
+    if data.lesson_index not in updated_lessons:
+        raise HTTPException(
+            status_code=500,
+            detail="Lesson completion could not be verified"
+        )
+
+    return {
+        "message": "Lesson progress saved successfully",
+        "lesson_index": data.lesson_index,
+        "completed_lessons": updated_lessons,
+        "next_lesson_unlocked": hobby.can_go_next(
+            data.skill,
+            data.lesson_index,
+            updated_lessons
+        )
+    }
+
+@app.get("/hobby/{hobby_name}/progress/{skill}")
+def get_lesson_progress(
+    hobby_name: str,
+    skill: str,
+    session_id: str
+):
+    hobby = hobby_pages.get(hobby_name.lower())
+
+    if hobby is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Hobby not found"
+        )
+
+    if skill not in hobby.skill_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid skill level"
+        )
+
+    completed_lessons = get_completed_lessons(
+        session_id,
+        hobby.name,
+        skill
+    )
+
+    return {
+        "hobby": hobby.name,
+        "skill": skill,
+        "completed_lessons": completed_lessons,
+        "progress": hobby.get_lesson_progress(
+            skill,
+            completed_lessons
+        )
+    }
