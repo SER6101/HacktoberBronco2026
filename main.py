@@ -1,7 +1,10 @@
+import random
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from uuid import uuid4
 from database import save_questionnaire
+
 
 app = FastAPI(title="Personal Hobby Discovery")
 
@@ -198,18 +201,55 @@ def recommend(data: Questionnaire):
         reverse=True
     )
 
+    # 1. Get the top 3 personalized recommendations
     top_recommendations = recommendations[:3]
 
+    # 2. Find hobbies that are NOT in the top 3
+    selected_names = [
+        item["hobby"] for item in top_recommendations
+    ]
+
+    remaining_hobbies = [
+        hobby for hobby in hobbies
+        if hobby["name"] not in selected_names
+    ]
+
+    # 3. Pick one random hobby
+    random_hobby = None
+
+    if remaining_hobbies:
+        random_choice = random.choice(remaining_hobbies)
+
+        random_hobby = {
+            "hobby": random_choice["name"],
+            "description": random_choice["description"],
+            "estimated_cost": random_choice["cost"],
+            "hours_per_week": random_choice["hours"]
+        }
+
+    # 4. Create an anonymous questionnaire ID
     response_id = str(uuid4())
 
+    # 5. Save results to Snowflake
     save_questionnaire(
         response_id=response_id,
         answers=data.answers,
-        recommendations=top_recommendations
+        recommendations={
+            "personalized": top_recommendations,
+            "random": random_hobby
+        }
     )
 
+    # 6. Return all five options to the frontend
     return {
         "response_id": response_id,
-        "message": "Questionnaire saved successfully",
-        "recommendations": top_recommendations
+
+        "recommendations": {
+            "personalized": top_recommendations,
+            "random": random_hobby,
+            "explore_more": {
+                "label": "Explore More Hobbies",
+                "endpoint": "/hobbies"
+            }
+        }
     }
