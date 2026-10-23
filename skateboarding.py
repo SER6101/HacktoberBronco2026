@@ -1,3 +1,4 @@
+
 from hobby import Hobby
 
 
@@ -5,7 +6,7 @@ class Skateboarding(Hobby):
 
     def __init__(self):
 
-        # Inherit the parent Hobby class
+        # Initialize the parent Hobby class
         super().__init__(
             name="Skateboarding",
             description=(
@@ -14,45 +15,13 @@ class Skateboarding(Hobby):
             )
         )
 
-        # Instroduction (All Skills)
+        # 10-Lesson Roadmap
 
-        self.introduction = (
-            "Skateboarding is a hobby that combines creativity, "
-            "balance, coordination, and physical activity. "
-            "Whether you want to cruise around or learn tricks, "
-            "skateboarding offers opportunities to challenge yourself. "
-            "Always wear appropriate protective equipment, "
-            "including a helmet, and practice in safe environments."
-        )
+        # Lessons 1-3: Beginner foundation
+        # Lessons 4-6: Intermediate
+        # Lessons 7-10: Expert
 
-        # Instructions
-
-        self.instructions = {
-            "Beginner": [
-                "Wear a helmet and protective equipment.",
-                "Choose a suitable beginner skateboard.",
-                "Practice on smooth, flat ground.",
-                "Learn how to balance and stop safely."
-            ],
-
-            "Intermediate": [
-                "Review your basic riding techniques.",
-                "Practice consistent ollies and kickturns.",
-                "Improve board control and turning.",
-                "Use appropriate safety equipment."
-            ],
-
-            "Expert": [
-                "Focus on refining advanced techniques.",
-                "Develop consistent trick combinations.",
-                "Practice within your ability and environment.",
-                "Continue using appropriate protective equipment."
-            ]
-        }
-
-        # Lessons (Beginner)
-
-        self.lessons["Beginner"] = [
+        self.lessons = [
             {
                 "title": "Understanding Your Skateboard",
                 "reading": (
@@ -101,12 +70,7 @@ class Skateboarding(Hobby):
                     "Master stopping before increasing your speed."
                 ),
                 "video_url": None
-            }
-        ]
-
-        # Lession (Intermediate)
-
-        self.lessons["Intermediate"] = [
+            },
             {
                 "title": "Improving Board Control",
                 "reading": (
@@ -136,12 +100,7 @@ class Skateboarding(Hobby):
                     "Gradually improve your balance and control."
                 ),
                 "video_url": None
-            }
-        ]
-
-        # Lesson (Expert)
-
-        self.lessons["Expert"] = [
+            },
             {
                 "title": "Advanced Trick Consistency",
                 "reading": (
@@ -168,13 +127,16 @@ class Skateboarding(Hobby):
                     "Develop a personal skateboarding style "
                     "by experimenting with movements, "
                     "transitions, and combinations "
-                    "that match your experience."
+                    "that match your experience. "
+                    "Review your progress and set new goals."
                 ),
                 "video_url": None
             }
         ]
 
-        # Quest
+        # ---------------------------------
+        # SKILL-SPECIFIC QUESTS
+        # ---------------------------------
 
         self.quests = {
             "Beginner": [
