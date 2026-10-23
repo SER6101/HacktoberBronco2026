@@ -99,6 +99,35 @@ class Hobby:
             for index in range(lesson_index)
         )
 
+    # Previous lesson is accessible regardless of completion
+    def can_go_previous(self, skill, lesson_index):
+        self.validate_skill(skill)
+    
+        return lesson_index > 0 and lesson_index < len(
+            self.get_lessons(skill)
+        )
+    
+    # Next lesson requires current lesson completion
+    def can_go_next(
+        self,
+        skill,
+        lesson_index,
+        completed_lessons
+    ):
+        lessons = self.get_lessons(skill)
+
+        # Check whether a next lesson exists
+        if not 0 <= lesson_index < len(lessons) - 1:
+            return False
+
+        # Check whether the next lesson is unlocked
+        return self.is_lesson_unlocked(
+            skill,
+            lesson_index + 1,
+            completed_lessons
+        )
+    
+
     # Check whether a lesson can be completed
     def can_complete_lesson(
         self,
@@ -117,21 +146,19 @@ class Hobby:
 
         lesson = self.get_lesson(skill, lesson_index)
 
-        # Reading is required when reading content exists
-        reading_required = bool(lesson.get("reading"))
+        has_reading = bool(lesson.get("reading"))
+        has_video = bool(lesson.get("video_url"))
 
-        # Video is required when a video URL exists
-        video_required = bool(lesson.get("video_url"))
+        # A lesson must contain reading or video content
+        if not has_reading and not has_video:
+            return False
 
-        reading_complete = (
-            not reading_required or reading_finished
+        # Completing either available format is sufficient
+        return (
+            (has_reading and reading_finished)
+            or
+            (has_video and video_finished)
         )
-
-        video_complete = (
-            not video_required or video_finished
-        )
-
-        return reading_complete and video_complete
 
     # Return completion information for a lesson
     def get_lesson_status(
