@@ -1,3 +1,2 @@
 fastapi
 uvicorn
-snowflake-connector-python

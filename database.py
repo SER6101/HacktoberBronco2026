@@ -1,93 +1,84 @@
-import os
+import sqlite3
 import json
-import snowflake.connector
 
+DB_FILE = "hobby_app.db"
 
-def connect_to_snowflake():
-    return snowflake.connector.connect(
-        account=os.environ["SNOWFLAKE_ACCOUNT"],
-        user=os.environ["SNOWFLAKE_USER"],
-        password=os.environ["SNOWFLAKE_PASSWORD"],
-        warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
-        database="HOBBY_APP",
-        schema="PUBLIC",
-        autocommit=False
-    )
+def get_connection():
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS questionnaire_responses (
+            response_id TEXT PRIMARY KEY,
+            question_1 TEXT,
+            question_2 TEXT,
+            question_3 TEXT,
+            question_4 TEXT,
+            question_5 TEXT,
+            recommendations TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 def save_questionnaire(response_id, answers, recommendations):
-    connection = connect_to_snowflake()
-
+    connection = get_connection()
     try:
         cursor = connection.cursor()
-
-        try:
-            cursor.execute(
-                """
-                INSERT INTO QUESTIONNAIRE_RESPONSES (
-                    RESPONSE_ID,
-                    QUESTION_1,
-                    QUESTION_2,
-                    QUESTION_3,
-                    QUESTION_4,
-                    QUESTION_5,
-                    RECOMMENDATIONS
-                )
-                SELECT
-                    %s, %s, %s, %s, %s, %s,
-                    PARSE_JSON(%s)
-                """,
-                (
-                    response_id,
-                    answers[0],
-                    answers[1],
-                    answers[2],
-                    answers[3],
-                    answers[4],
-                    json.dumps(recommendations)
-                )
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO QUESTIONNAIRE_RESPONSES (
+                RESPONSE_ID,
+                QUESTION_1,
+                QUESTION_2,
+                QUESTION_3,
+                QUESTION_4,
+                QUESTION_5,
+                RECOMMENDATIONS
             )
-
-            connection.commit()
-
-        finally:
-            cursor.close()
-
-    except Exception:
-        connection.rollback()
-        raise
-
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                response_id,
+                answers[0],
+                answers[1],
+                answers[2],
+                answers[3],
+                answers[4],
+                json.dumps(recommendations)
+            )
+        )
+        connection.commit()
     finally:
         connection.close()
 
 def get_completed_lessons(session_id, hobby_name, skill):
-    connection = connect_to_snowflake()
-
+    connection = get_connection()
     try:
         cursor = connection.cursor()
-
-        try:
-            cursor.execute(
-                """
-                SELECT DISTINCT LESSON_INDEX
-                FROM LESSON_PROGRESS
-                WHERE SESSION_ID = %s
-                  AND HOBBY_NAME = %s
-                  AND SKILL_LEVEL = %s
-                  AND COMPLETED = TRUE
-                ORDER BY LESSON_INDEX
-                """,
-                (session_id, hobby_name, skill)
-            )
-
-            return [row[0] for row in cursor.fetchall()]
-
-        finally:
-            cursor.close()
-
+        cursor.execute(
+            """
+            SELECT DISTINCT LESSON INDEX
+            FROM LESSON_PROGRESS
+            WHERE SESSION_ID = ? 
+            AND HOBBY_NAME = ? 
+            AND SKILL = ?
+            AND COMPLETED = 1
+            ORDER BY LESSON_INDEX
+            """,
+            (session_id, hobby_name, skill)
+        )
+        return [row[0] for row in cursor.fetchall()]
     finally:
         connection.close()
-
 
 def save_lesson_progress(
     session_id,
@@ -97,79 +88,37 @@ def save_lesson_progress(
     reading_finished,
     video_finished
 ):
-    connection = connect_to_snowflake()
-
+    connection = get_connection()
     try:
         cursor = connection.cursor()
-
-        try:
-            cursor.execute(
-                """
-                MERGE INTO LESSON_PROGRESS AS target
-                USING (
-                    SELECT
-                        %s AS SESSION_ID,
-                        %s AS HOBBY_NAME,
-                        %s AS SKILL_LEVEL,
-                        %s AS LESSON_INDEX
-                ) AS source
-
-                ON target.SESSION_ID = source.SESSION_ID
-                   AND target.HOBBY_NAME = source.HOBBY_NAME
-                   AND target.SKILL_LEVEL = source.SKILL_LEVEL
-                   AND target.LESSON_INDEX = source.LESSON_INDEX
-
-                WHEN MATCHED THEN
-                    UPDATE SET
-                        READING_FINISHED =
-                            target.READING_FINISHED
-                            OR %s,
-                        VIDEO_FINISHED =
-                            target.VIDEO_FINISHED
-                            OR %s,
-                        COMPLETED = TRUE,
-                        UPDATED_AT = CURRENT_TIMESTAMP()
-
-                WHEN NOT MATCHED THEN
-                    INSERT (
-                        SESSION_ID,
-                        HOBBY_NAME,
-                        SKILL_LEVEL,
-                        LESSON_INDEX,
-                        READING_FINISHED,
-                        VIDEO_FINISHED,
-                        COMPLETED
-                    )
-                    VALUES (
-                        source.SESSION_ID,
-                        source.HOBBY_NAME,
-                        source.SKILL_LEVEL,
-                        source.LESSON_INDEX,
-                        %s,
-                        %s,
-                        TRUE
-                    )
-                """,
-                (
-                    session_id,
-                    hobby_name,
-                    skill,
-                    lesson_index,
-                    reading_finished,
-                    video_finished,
-                    reading_finished,
-                    video_finished
-                )
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO LESSON_PROGRESS (
+                SESSION_ID,
+                HOBBY_NAME,
+                SKILL,
+                LESSON_INDEX,
+                READING_FINISHED,
+                VIDEO_FINISHED,
+                COMPLETED
             )
-
-            connection.commit()
-
-        finally:
-            cursor.close()
-
-    except Exception:
-        connection.rollback()
-        raise
-
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(SESSION_ID, HOBBY_NAME, SKILL_LEVEL, LESSON_INDEX) 
+            DO UPDATE SET
+                READING_FINISHED = READING_FINISHED OR excluded.READING_FINISHED,
+                VIDEO_FINISHED = VIDEO_FINISHED OR excluded.VIDEO_FINISHED,
+                COMPLETED = 1,
+                UPDATED_AT = CURRENT_TIMESTAMP
+            """,
+            (
+                session_id,
+                hobby_name,
+                skill,
+                lesson_index,
+                1 if reading_finished else 0,
+                1 if video_finished else 0,
+            )
+        )
+        connection.commit()
     finally:
         connection.close()
