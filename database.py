@@ -69,7 +69,7 @@ def get_completed_lessons(session_id, hobby_name, skill):
         try:
             cursor.execute(
                 """
-                SELECT LESSON_INDEX
+                SELECT DISTINCT LESSON_INDEX
                 FROM LESSON_PROGRESS
                 WHERE SESSION_ID = %s
                   AND HOBBY_NAME = %s
