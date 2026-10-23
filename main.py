@@ -1,13 +1,22 @@
 import random
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from uuid import uuid4
-from database import save_questionnaire
+
 from hobby import Hobby
 
+from database import (
+    save_questionnaire,
+    get_completed_lessons,
+    save_lesson_progress
+)
 
-app = FastAPI(title="Personal Hobby Discovery")
+app = FastAPI(
+    title="HobBob",
+    description="A personalized hobby discovery and learning app.",
+    version="1.0.0"
+)
 
 questions = [
     {
