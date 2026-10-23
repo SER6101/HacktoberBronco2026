@@ -210,9 +210,11 @@ def recommend(data: Questionnaire):
     ]
 
     remaining_hobbies = [
-        hobby for hobby in hobbies
-        if hobby["name"] not in selected_names
-    ]
+    hobby for hobby in hobbies
+    if hobby["name"] not in selected_names
+    and hobby["cost"] <= budget_limits[budget]
+    and hobby["hours"] <= time_limits[time]
+]
 
     # 3. Pick one random hobby
     random_hobby = None
@@ -252,4 +254,21 @@ def recommend(data: Questionnaire):
                 "endpoint": "/hobbies"
             }
         }
+    }
+
+@app.get("/hobbies")
+def get_all_hobbies():
+
+    all_hobbies = []
+
+    for hobby in hobbies:
+        all_hobbies.append({
+            "hobby": hobby["name"],
+            "description": hobby["description"],
+            "estimated_cost": hobby["cost"],
+            "hours_per_week": hobby["hours"]
+        })
+
+    return {
+        "hobbies": all_hobbies
     }
