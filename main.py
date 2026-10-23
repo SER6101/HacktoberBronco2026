@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from uuid import uuid4
+from database import save_questionnaire
 
 app = FastAPI(title="Personal Hobby Discovery")
 
