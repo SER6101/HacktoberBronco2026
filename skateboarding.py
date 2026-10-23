@@ -134,9 +134,8 @@ class Skateboarding(Hobby):
             }
         ]
 
-        # ---------------------------------
-        # SKILL-SPECIFIC QUESTS
-        # ---------------------------------
+ 
+        # Skill Related Quest
 
         self.quests = {
             "Beginner": [
