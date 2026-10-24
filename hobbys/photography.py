@@ -1,4 +1,4 @@
-from hobby import Hobby
+from .hobby import Hobby
 
 
 class Photography(Hobby):

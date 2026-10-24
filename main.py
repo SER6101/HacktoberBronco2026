@@ -5,10 +5,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from hobby import Hobby
-from hobby_registry import HOBBY_CLASSES
+from hobbys.hobby import Hobby
+from hobbys.hobby_registry import HOBBY_CLASSES
 
-from database import (
+from hobbys.database import (
     init_db,
     save_questionnaire,
     get_completed_lessons,

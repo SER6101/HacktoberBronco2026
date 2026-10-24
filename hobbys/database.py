@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 # Local SQLite database file
-DB_FILE = Path(__file__).resolve().parent / "hobby_app.db"
+DB_FILE = Path(__file__).resolve().parent.parent / "hobby_app.db"
 
 
 def get_connection():
