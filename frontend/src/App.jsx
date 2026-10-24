@@ -34,9 +34,9 @@ export default function App() {
     return user ? saveUser({ ...user, answers, recommendations }) : false;
   }
   function saveHobbies() {
-    const hobbies = selectedHobbies.slice(0, 1);
-    if (user && hobbies.length && saveUser({
-      ...user, hobbies,
+    const selectedHobby = selectedHobbies[0];
+    if (user && selectedHobby && saveUser({
+      ...user, hobbies: [...new Set([...(user.hobbies || []), selectedHobby])],
       progress: user.progress || {}, skillLevels: user.skillLevels || {},
     })) setScreen("dashboard");
   }
