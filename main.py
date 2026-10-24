@@ -376,6 +376,7 @@ for hobby_data in hobbies:
 
 class Questionnaire(BaseModel):
     answers: list[str]
+    excluded_hobbies: list[str] = Field(default_factory=list)
 
 
 class SkillSelection(BaseModel):
@@ -484,6 +485,9 @@ def recommend(data: Questionnaire):
 
     for hobby in hobbies:
 
+        if hobby["name"] in data.excluded_hobbies:
+            continue
+
         if hobby["cost"] > budget_limits[budget]:
             continue
 
@@ -520,6 +524,7 @@ def recommend(data: Questionnaire):
     selected_names = {
         item["hobby"] for item in top_recommendations
     }
+    selected_names.update(data.excluded_hobbies)
 
     # Random recommendation from eligible hobbies
     remaining_hobbies = [

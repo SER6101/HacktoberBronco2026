@@ -17,8 +17,8 @@ const params = (values) => new URLSearchParams(values).toString();
 
 export const getQuestions = () => request("/questions");
 export const getHobbies = () => request("/hobbies");
-export const submitQuestionnaire = (answers) => request("/recommend", {
-  method: "POST", body: JSON.stringify({ answers }),
+export const submitQuestionnaire = (answers, excludedHobbies = []) => request("/recommend", {
+  method: "POST", body: JSON.stringify({ answers, excluded_hobbies: excludedHobbies }),
 });
 export const getHobbyInfo = (name) => request(hobbyPath(name));
 export const selectSkill = (name, skill, sessionId) => request(`${hobbyPath(name)}/select-skill`, {

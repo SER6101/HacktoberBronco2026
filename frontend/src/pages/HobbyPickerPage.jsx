@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { hobbies as localHobbies, questions } from "../data/hobbies.js";
 import { getHobbies, submitQuestionnaire } from "../services/api.js";
 
@@ -11,8 +11,10 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
   const [recommendations, setRecommendations] = useState(user.recommendations || null);
   const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [catalogError, setCatalogError] = useState("");
+  const requestedBatches = useRef(new Set());
 
   useEffect(() => {
     getHobbies()
@@ -34,19 +36,87 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
   }
 
   const question = questions[questionIndex];
-  const personalized = (recommendations?.personalized || []).slice(0, 3);
+  const ownedHobbies = new Set(user.hobbies || []);
+  const batchPersonalized = (recommendations?.personalized || []).slice(0, 3);
+  const personalized = batchPersonalized.filter((item) => !ownedHobbies.has(item.hobby));
   const personalizedNames = new Set(personalized.map((item) => item.hobby));
+  const randomRecommendation = recommendations?.random;
+  const hasNewRandomRecommendation = randomRecommendation
+    && !ownedHobbies.has(randomRecommendation.hobby)
+    && !personalizedNames.has(randomRecommendation.hobby);
   const recommended = [
     ...personalized,
-    ...(recommendations?.random && !personalizedNames.has(recommendations.random.hobby)
-      ? [recommendations.random]
-      : []),
+    ...(hasNewRandomRecommendation ? [randomRecommendation] : []),
   ];
   const recommendedNames = new Set(recommended.map((item) => item.hobby));
+  const previouslyRecommendedNames = new Set([
+    ...(recommendations?.personalized || []).map((item) => item.hobby),
+    ...(recommendations?.random ? [recommendations.random.hobby] : []),
+  ]);
+  const excludedHobbies = [...new Set([
+    ...ownedHobbies,
+    ...previouslyRecommendedNames,
+  ])].sort();
+  const excludedKey = excludedHobbies.join("|");
   const visible = showAll
-    ? catalog.filter((item) => !recommendedNames.has(item.hobby))
-    : recommended;
+    ? catalog.filter((item) =>
+      !ownedHobbies.has(item.hobby) && !recommendedNames.has(item.hobby))
+    : [];
   const selectedHobby = selectedHobbies[0] || "";
+  const allPersonalizedOwned = batchPersonalized.length > 0
+    && batchPersonalized.every((item) => ownedHobbies.has(item.hobby));
+
+  function renderHobbyCard(item, isRandom = false) {
+    const hobby = localHobbies.find((entry) => entry.name === item.hobby);
+    const isSelected = selectedHobby === item.hobby;
+    return (
+      <button
+        key={item.hobby}
+        type="button"
+        className={`pick-card${isSelected ? " selected" : ""}${isRandom ? " random-pick-card" : ""}`}
+        aria-pressed={isSelected}
+        onClick={() => onToggle(item.hobby)}
+      >
+        <span className="hobby-icon">{hobby?.icon || "✦"}</span>
+        <span className="check">{isSelected ? "✓" : ""}</span>
+        <small className={isRandom ? "random-pick-label" : undefined}>
+          {isRandom ? "TRY SOMETHING NEW" : hobby?.category || "HOBBY"}
+        </small>
+        <strong>{item.hobby}</strong>
+        <span className="description">{item.description || hobby?.description}</span>
+        {isSelected && <span className="selected-label">Selected</span>}
+      </button>
+    );
+  }
+
+  useEffect(() => {
+    if (!startAtPicker || phase !== "picker" || showAll || catalog.length === 0
+      || !allPersonalizedOwned || !catalog.some((item) => !ownedHobbies.has(item.hobby))
+      || requestedBatches.current.has(excludedKey)) return undefined;
+
+    requestedBatches.current.add(excludedKey);
+    let active = true;
+    setLoadingMore(true);
+    setError("");
+
+    submitQuestionnaire(answers, excludedHobbies)
+      .then((result) => {
+        if (!active) return;
+        if (onSaveAnswers(answers, result.recommendations)) {
+          setRecommendations(result.recommendations);
+        } else {
+          setError("Could not save the new recommendations. Please try again.");
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setLoadingMore(false);
+      });
+
+    return () => { active = false; };
+  }, [startAtPicker, phase, showAll, catalog.length, allPersonalizedOwned, excludedKey]);
 
   if (phase === "questionnaire") return (
     <main className="narrow">
@@ -79,27 +149,37 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
   return (
     <main className="wide">
       <div className="topline"><button className="text-button back" onClick={onBack}>← My hobbies</button><button className="text-button" onClick={onSignOut}>Sign out</button></div>
-      <section className="page-heading"><p className="eyebrow">YOUR HOBBY SHORTLIST</p><h1>Choose one hobby to get started.</h1><p>Here are three recommendations based on your answers and one random pick.</p></section>
-      {!showAll && <p className="picker-section-label">RECOMMENDED FOR YOU <span>3 personalized picks + 1 random pick</span></p>}
+      <section className="page-heading"><p className="eyebrow">YOUR HOBBY SHORTLIST</p><h1>Choose one hobby to get started.</h1><p>Choose a new recommendation or browse other hobbies you haven’t added yet.</p></section>
+      {!showAll && <p className="picker-section-label">RECOMMENDED FOR YOU <span>{personalized.length} personalized picks</span></p>}
       {showAll && <p className="picker-section-label">EXPLORE OTHER HOBBIES</p>}
-      <div className="picker-grid">{visible.map((item) => {
-        const hobby = localHobbies.find((h) => h.name === item.hobby);
-        const isRandom = recommendations?.random?.hobby === item.hobby;
-        return <button key={item.hobby} type="button" className={`pick-card${selectedHobby === item.hobby ? " selected" : ""}`}
-          aria-pressed={selectedHobby === item.hobby} onClick={() => onToggle(item.hobby)}>
-          <span className="hobby-icon">{hobby?.icon || "✦"}</span><span className="check">{selectedHobby === item.hobby ? "✓" : ""}</span>
-          <small className={isRandom && !showAll ? "random-pick-label" : undefined}>
-            {isRandom && !showAll ? "TRY SOMETHING NEW" : hobby?.category || "HOBBY"}
-          </small>
-          <strong>{item.hobby}</strong><span className="description">{item.description || hobby?.description}</span>
-          {selectedHobby === item.hobby && <span className="selected-label">Selected</span>}
-        </button>;
-      })}</div>
+      {showAll ? (
+        <div className="picker-grid">{visible.map((item) => renderHobbyCard(item))}</div>
+      ) : (
+        <>
+          {personalized.length > 0
+            ? <div className="picker-grid">{personalized.map((item) => renderHobbyCard(item))}</div>
+            : <p className="muted" role={loadingMore ? "status" : undefined}>
+              {loadingMore ? "Finding more personalized hobbies…" : "No more personalized hobbies match your answers."}
+            </p>}
+          {hasNewRandomRecommendation && (
+            <section className="random-pick-section" aria-label="Try something new">
+              <div>
+                <p className="picker-section-label">TRY SOMETHING NEW</p>
+                <p className="muted">A random pick outside your personalized recommendations.</p>
+              </div>
+              <div className="picker-grid random-pick-grid">
+                {renderHobbyCard(randomRecommendation, true)}
+              </div>
+            </section>
+          )}
+        </>
+      )}
       <div className="picker-more-actions">
         {!showAll && <button type="button" className="button light" onClick={() => setShowAll(true)}>Show other hobbies →</button>}
         {showAll && <button type="button" className="text-button back-to-picks" onClick={() => setShowAll(false)}>← Back to recommendations</button>}
       </div>
-      {!showAll && recommended.length === 0 && <p className="error" role="alert">Recommendations aren’t available yet. Try exploring the full hobby list.</p>}
+      {!showAll && personalized.length === 0 && !loadingMore
+        && !hasNewRandomRecommendation && <p className="muted">Try exploring other hobbies.</p>}
       {(error || catalogError) && <p className="error" role="alert">{error || catalogError}</p>}
       <div className="sticky-action"><span>{selectedHobby ? `${selectedHobby} selected` : "Choose one hobby to continue"}</span><button className="button primary" disabled={!selectedHobby} onClick={onSaveHobbies}>Save to my page →</button></div>
     </main>

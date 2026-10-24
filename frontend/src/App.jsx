@@ -69,7 +69,7 @@ export default function App() {
     finally { setUser(null); setScreen("auth"); }
   }
   function beginOnboarding() {
-    setSelectedHobbies((user?.hobbies || []).slice(0, 1));
+    setSelectedHobbies([]);
     setScreen("onboarding");
   }
 
