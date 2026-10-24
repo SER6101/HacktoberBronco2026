@@ -12,7 +12,15 @@ export default function App() {
   const [user, setUser] = useState(() => {
     try { return getActiveUser(); } catch { return null; }
   });
-  const [screen, setScreen] = useState(() => !user ? "auth" : user.answers ? "dashboard" : "onboarding");
+  const [screen, setScreen] = useState(() => {
+  if (!user) return "auth";
+
+  const completed =
+    user.questionnaireCompleted === true ||
+    (Array.isArray(user.answers) && user.answers.length === 5);
+
+  return completed ? "dashboard" : "onboarding";
+});
   const [selectedHobby, setSelectedHobby] = useState("");
   const [selectedHobbies, setSelectedHobbies] = useState([]);
 
@@ -31,11 +39,19 @@ export default function App() {
     setScreen(existingUser.answers ? "dashboard" : "onboarding");
   }
   function saveAnswers(answers, recommendations) {
-    return user ? saveUser({ ...user, answers, recommendations }) : false;
-  }
+  if (!user) return false;
+
+  return saveUser({
+    ...user,
+    answers,
+    recommendations,
+    questionnaireCompleted: true
+  });
+}
   function saveHobbies() {
-    if (user && selectedHobbies.length && saveUser({
-      ...user, hobbies: selectedHobbies,
+    const selectedHobby = selectedHobbies[0];
+    if (user && selectedHobby && saveUser({
+      ...user, hobbies: [...new Set([...(user.hobbies || []), selectedHobby])],
       progress: user.progress || {}, skillLevels: user.skillLevels || {},
     })) setScreen("dashboard");
   }
@@ -53,7 +69,7 @@ export default function App() {
     finally { setUser(null); setScreen("auth"); }
   }
   function beginOnboarding() {
-    setSelectedHobbies(user?.hobbies || []);
+    setSelectedHobbies((user?.hobbies || []).slice(0, 1));
     setScreen("onboarding");
   }
 
@@ -66,8 +82,7 @@ export default function App() {
       {screen === "auth" && <AuthPage onSignup={signUp} onLogin={logIn} />}
       {screen === "onboarding" && user && (
         <HobbyPickerPage user={user} selectedHobbies={selectedHobbies}
-          onToggle={(name) => setSelectedHobbies((current) => current.includes(name)
-            ? current.filter((item) => item !== name) : [...current, name])}
+          onToggle={(name) => setSelectedHobbies([name])}
           onSaveAnswers={saveAnswers} onSaveHobbies={saveHobbies}
           onBack={() => setScreen("dashboard")} onSignOut={signOut}
           startAtPicker={Boolean(user.answers)} />

@@ -1,7 +1,9 @@
 export const questions = [
-  { prompt: "What would you like a hobby to bring to your life?", choices: ["A chance to relax", "A new skill", "More movement", "A creative outlet"] },
-  { prompt: "How do you like to spend your free time?", choices: ["Making things", "Exploring", "Solving problems", "Being active"] },
-  { prompt: "What kind of setting sounds good?", choices: ["On my own", "With a small group", "Meeting new people", "A bit of everything"] },
+  { question: "What do you hope to gain from a hobby?", options: ["Relaxation", "Learning", "Fitness", "Creativity"] },
+  { question: "What activities do you enjoy?", options: ["Creating", "Exploring", "Problem solving", "Physical activities"] },
+  { question: "How do you prefer spending free time?", options: ["Alone", "Small group", "Meeting people", "Either"] },
+  { question: "What is your starting budget?", options: ["Free", "Under $25", "$25-$100", "Over $100"] },
+  { question: "How much time do you have each week?", options: ["Under 2 hours", "2-5 hours", "5-10 hours", "Over 10 hours"] },
 ];
 
 export const hobbies = [
