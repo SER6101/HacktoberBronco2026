@@ -88,7 +88,6 @@ questions = [
 ]
 
 # Hobby catalog with preferences and requirements
-# Hobby catalog with preferences and requirements
 hobbies = [
     {
         "name": "Drawing",
