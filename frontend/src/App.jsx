@@ -12,7 +12,15 @@ export default function App() {
   const [user, setUser] = useState(() => {
     try { return getActiveUser(); } catch { return null; }
   });
-  const [screen, setScreen] = useState(() => !user ? "auth" : user.answers ? "dashboard" : "onboarding");
+  const [screen, setScreen] = useState(() => {
+  if (!user) return "auth";
+
+  const completed =
+    user.questionnaireCompleted === true ||
+    (Array.isArray(user.answers) && user.answers.length === 5);
+
+  return completed ? "dashboard" : "onboarding";
+});
   const [selectedHobby, setSelectedHobby] = useState("");
   const [selectedHobbies, setSelectedHobbies] = useState([]);
 
