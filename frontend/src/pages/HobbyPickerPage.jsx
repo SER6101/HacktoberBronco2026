@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { hobbies as localHobbies } from "../data/hobbies.js";
-import { getQuestions, getHobbies, submitQuestionnaire } from "../services/api.js";
+import { hobbies as localHobbies, questions } from "../data/hobbies.js";
+import { getHobbies, submitQuestionnaire } from "../services/api.js";
 
 export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSaveAnswers,
   onSaveHobbies, onBack, onSignOut, startAtPicker = false }) {
   const [phase, setPhase] = useState(startAtPicker ? "picker" : "questionnaire");
-  const [questions, setQuestions] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState(user.answers || Array(5).fill(""));
@@ -13,11 +12,12 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
   const [showAll, setShowAll] = useState(Boolean(startAtPicker));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [catalogError, setCatalogError] = useState("");
 
   useEffect(() => {
-    Promise.all([getQuestions(), getHobbies()])
-      .then(([q, h]) => { setQuestions(q.questions); setCatalog(h.hobbies); })
-      .catch((err) => setError(err.message));
+    getHobbies()
+      .then((result) => setCatalog(result.hobbies))
+      .catch((err) => setCatalogError(err.message));
   }, []);
 
   async function finishQuestionnaire() {
@@ -45,8 +45,8 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
       <div className="topline"><span>Hi {user.name.split(" ")[0]}, let’s find your kind of fun.</span><button className="text-button" onClick={onSignOut}>Sign out</button></div>
       <section className="quiz-card">
         <p className="eyebrow">A FEW QUICK QUESTIONS</p>
-        <div className="progress-track"><span style={{ width: `${(questionIndex + 1) / 5 * 100}%` }} /></div>
-        <p className="step-label">QUESTION {questionIndex + 1} OF 5</p>
+        <div className="progress-track"><span style={{ width: `${(questionIndex + 1) / questions.length * 100}%` }} /></div>
+        <p className="step-label">QUESTION {questionIndex + 1} OF {questions.length}</p>
         {question ? <>
           <h1>{question.question}</h1>
           <div className="choices">{question.options.map((choice) => (
@@ -58,11 +58,11 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
           ))}</div>
           <div className="actions">
             {questionIndex > 0 && <button className="button light" onClick={() => setQuestionIndex(questionIndex - 1)}>← Back</button>}
-            {questionIndex < 4
+            {questionIndex < questions.length - 1
               ? <button className="button primary" disabled={!answers[questionIndex]} onClick={() => setQuestionIndex(questionIndex + 1)}>Next question →</button>
               : <button className="button primary" disabled={!answers[questionIndex] || busy} onClick={finishQuestionnaire}>{busy ? "Finding hobbies…" : "See my recommendations →"}</button>}
           </div>
-        </> : <p>Loading questions from HobBob…</p>}
+        </> : null}
         {error && <p className="error" role="alert">{error}</p>}
       </section>
     </main>
@@ -84,7 +84,7 @@ export default function HobbyPickerPage({ user, selectedHobbies, onToggle, onSav
         </button>;
       })}</div>
       {!showAll && <button className="button light" onClick={() => setShowAll(true)}>Explore More Hobbies →</button>}
-      {error && <p className="error" role="alert">{error}</p>}
+      {(error || catalogError) && <p className="error" role="alert">{error || catalogError}</p>}
       <div className="sticky-action"><span>{selectedHobbies.length} hobbies selected</span><button className="button primary" disabled={!selectedHobbies.length} onClick={onSaveHobbies}>Save to my page →</button></div>
     </main>
   );
