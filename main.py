@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from hobby import Hobby
-from skateboarding import Skateboarding
+from hobby_registry import HOBBY_CLASSES
 
 from database import (
     init_db,
@@ -22,7 +22,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Initialize local SQLite storage
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"]
+)
+
 init_db()
 
 questions = [
@@ -78,7 +87,6 @@ questions = [
     }
 ]
 
-# Hobby catalog with preferences and requirements
 # Hobby catalog with preferences and requirements
 hobbies = [
     {
@@ -356,19 +364,13 @@ hobbies = [
 
 # Hobby Page Object
 
+# Create a specialized page object for every hobby
 hobby_pages = {}
 
 for hobby_data in hobbies:
     name = hobby_data["name"]
 
-    if name == "Skateboarding":
-        hobby_pages[name.lower()] = Skateboarding()
-    else:
-        hobby_pages[name.lower()] = Hobby(
-            name=name,
-            description=hobby_data["description"]
-        )
-
+    hobby_pages[name.lower()] = HOBBY_CLASSES[name]()
 
 # Request Model
 
