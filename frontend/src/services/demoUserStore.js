@@ -18,13 +18,24 @@ export function createDemoUser({ name, email }) {
   }
 
   const user = {
-    name: name.trim(),
-    email: normalizedEmail,
-    answers: null,
-    hobbies: [],
-    progress: {},
-    skillLevels: {},
-  };
+  sessionId: crypto.randomUUID(),
+  name: name.trim(),
+  email: normalizedEmail,
+
+  answers: null,
+  recommendations: null,
+
+  // Has the user completed the first questionnaire?
+  questionnaireCompleted: false,
+
+  // Multiple selected hobbies
+  hobbies: [],
+
+  // Remember skill levels separately for each hobby
+  skillLevels: {},
+
+  progress: {}
+};
   accounts[normalizedEmail] = user;
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
   localStorage.setItem(ACTIVE_ACCOUNT_KEY, normalizedEmail);
