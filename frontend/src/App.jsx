@@ -34,8 +34,9 @@ export default function App() {
     return user ? saveUser({ ...user, answers, recommendations }) : false;
   }
   function saveHobbies() {
-    if (user && selectedHobbies.length && saveUser({
-      ...user, hobbies: selectedHobbies,
+    const hobbies = selectedHobbies.slice(0, 1);
+    if (user && hobbies.length && saveUser({
+      ...user, hobbies,
       progress: user.progress || {}, skillLevels: user.skillLevels || {},
     })) setScreen("dashboard");
   }
@@ -53,7 +54,7 @@ export default function App() {
     finally { setUser(null); setScreen("auth"); }
   }
   function beginOnboarding() {
-    setSelectedHobbies(user?.hobbies || []);
+    setSelectedHobbies((user?.hobbies || []).slice(0, 1));
     setScreen("onboarding");
   }
 
@@ -66,8 +67,7 @@ export default function App() {
       {screen === "auth" && <AuthPage onSignup={signUp} onLogin={logIn} />}
       {screen === "onboarding" && user && (
         <HobbyPickerPage user={user} selectedHobbies={selectedHobbies}
-          onToggle={(name) => setSelectedHobbies((current) => current.includes(name)
-            ? current.filter((item) => item !== name) : [...current, name])}
+          onToggle={(name) => setSelectedHobbies([name])}
           onSaveAnswers={saveAnswers} onSaveHobbies={saveHobbies}
           onBack={() => setScreen("dashboard")} onSignOut={signOut}
           startAtPicker={Boolean(user.answers)} />
