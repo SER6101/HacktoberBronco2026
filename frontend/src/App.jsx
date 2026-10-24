@@ -39,8 +39,15 @@ export default function App() {
     setScreen(existingUser.answers ? "dashboard" : "onboarding");
   }
   function saveAnswers(answers, recommendations) {
-    return user ? saveUser({ ...user, answers, recommendations }) : false;
-  }
+  if (!user) return false;
+
+  return saveUser({
+    ...user,
+    answers,
+    recommendations,
+    questionnaireCompleted: true
+  });
+}
   function saveHobbies() {
     const hobbies = selectedHobbies.slice(0, 1);
     if (user && hobbies.length && saveUser({
